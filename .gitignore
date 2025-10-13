@@ -1,0 +1,64 @@
+# ─────────────────────────────
+# 📦 Node.js dependencies
+# ─────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+# ─────────────────────────────
+# 🗂️ Environment variables
+# ─────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ─────────────────────────────
+# ⚙️ Build / compiled output
+# ─────────────────────────────
+dist/
+build/
+coverage/
+
+# ─────────────────────────────
+# 💬 Baileys WhatsApp session files
+# ─────────────────────────────
+# Tu carpeta personalizada de sesiones:
+auth_info_baileys/
+
+# Posibles nombres alternativos usados por Baileys:
+auth_info_multi.json
+baileys_auth_info/
+sessions/
+session/
+tmp/
+*.json.bak
+
+# ─────────────────────────────
+# 🧾 Logs y temporales
+# ─────────────────────────────
+logs/
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.DS_Store
+
+# ─────────────────────────────
+# 🧠 Archivos de IDE / sistema
+# ─────────────────────────────
+.vscode/
+.idea/
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# ─────────────────────────────
+# 🐳 Docker (opcional)
+# ─────────────────────────────
+docker-compose.override.yml
