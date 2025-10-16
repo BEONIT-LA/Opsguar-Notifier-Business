@@ -1,7 +1,7 @@
-const {getConnectionStatus, getQRCode, getAllGroups, getGroupById, sendToGroup} = require('../services/whatsappService');
+const { getConnectionStatus, getQRCode, getAllGroups, getGroupById, sendWhatsAppGroupMessage } = require('../services/whatsappService');
 
 function getStatus(req, res) {
-   const status = getConnectionStatus();
+  const status = getConnectionStatus();
   res.json(status);
 }
 
@@ -31,7 +31,8 @@ async function groups(req, res) {
 async function groupById(req, res) {
   try {
     const metadata = await getGroupById(req.params.groupId);
-    res.status(200).json({id: metadata.id,
+    res.status(200).json({
+      id: metadata.id,
       name: metadata.subject,
       owner: metadata.owner,
       creation: metadata.creation,
@@ -39,24 +40,24 @@ async function groupById(req, res) {
       participantsList: metadata.participants,
       desc: metadata.desc || '',
       restrict: metadata.restrict,
-      announce: metadata.announce});
+      announce: metadata.announce
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 }
 
+async function sendMessageToGroupAd(req, res) {
+  try {
+    const { groupId, text = "", imagePath = "", documentPath = "" } = req.body;
 
-async function sendMessageToGroup(req, res) {
- try {
-    const { groupId, message } = req.body;
-    if (!groupId || !message) return res.status(400).json({ error: 'Faltan parámetros' });
-    await sendToGroup(groupId, { text: message });
-    res.json({ success: true, message: 'Mensaje enviado correctamente', groupId });
+    const result = await sendWhatsAppGroupMessage({ groupId, text, imagePath, documentPath });
+    return res.json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
 
 
-
-module.exports = { getStatus, qr, logout, groups, groupById, sendMessageToGroup };
+module.exports = { getStatus, qr, logout, groups, groupById, sendMessageToGroupAd };
