@@ -10,7 +10,6 @@ const {
 } = require('@whiskeysockets/baileys');
 const path = require("path");
 
-
 // ===============================================================
 //  VARIABLES GLOBALES
 // ===============================================================
@@ -46,7 +45,7 @@ async function connectToWhatsApp() {
 
       if (qr) {
         qrCode = qr;
-        console.log('\n Escanea el siguiente QR para vincular WhatsApp:\n');
+        console.log('\nEscanea el siguiente QR para vincular WhatsApp:\n');
         qrcode.generate(qr, { small: true });
       }
 
@@ -66,11 +65,11 @@ async function connectToWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('messages.upsert', ({ messages, type }) => {
-      console.log('Nuevo evento de mensaje:', type);
+      console.log(' Nuevo evento de mensaje:', type);
     });
 
   } catch (error) {
-    console.error('Error conectando a WhatsApp:', error);
+    console.error(' Error conectando a WhatsApp:', error);
     setTimeout(connectToWhatsApp, 5000); // Reintentar conexión
   }
 }
@@ -79,7 +78,7 @@ function getConnectionStatus() {
   return {
     connected: isReady,
     needsQR: !!qrCode && !isReady,
-    message: isReady ? " WhatsApp conectado" : "Esperando autenticación..."
+    message: isReady ? " WhatsApp conectado" : " Esperando autenticación..."
   };
 }
 
@@ -93,7 +92,6 @@ function getQRCode() {
   return { message: "Generando QR, intenta nuevamente" };
 }
 
-
 async function logoutWhatsApp() {
   try {
     if (!sock) throw new Error('No hay sesión activa');
@@ -103,12 +101,13 @@ async function logoutWhatsApp() {
     isReady = false;
     qrCode = null;
 
-    return { message: 'Sesión cerrada correctamente' };
+    console.log(' Sesión cerrada correctamente');
     setTimeout(connectToWhatsApp, 2000);
+    
+    return { message: 'Sesión cerrada correctamente' };
   } catch (error) {
     throw new Error(`Error cerrando sesión: ${error.message}`);
   }
-
 }
 
 async function getAllGroups() {
@@ -127,9 +126,8 @@ async function getAllGroups() {
 
     return list;
   } catch (error) {
-    throw new Error(`Error al obtener el grupo: ${error.message}`);
+    throw new Error(`Error al obtener grupos: ${error.message}`);
   }
-
 }
 
 async function getGroupById(groupId) {
@@ -138,9 +136,8 @@ async function getGroupById(groupId) {
     const metadata = await sock.groupMetadata(groupId);
     return metadata;
   } catch (error) {
-    throw new Error(`Error al obtener el grupo por Id : ${error.message}`);
+    throw new Error(`Error al obtener el grupo por Id: ${error.message}`);
   }
-
 }
 
 function verifyWhatsAppReady(isReady, sock) {
@@ -149,7 +146,10 @@ function verifyWhatsAppReady(isReady, sock) {
   }
 }
 
-
+/**
+ * Envía mensaje con validación independiente de archivos
+ * Si la imagen falla, envía el documento. Si el documento falla, envía la imagen.
+ */
 async function sendWhatsAppGroupMessage({ groupId, text, imagePath, documentPath }) {
   try {
     // 1. Verificar conexión activa
@@ -160,83 +160,139 @@ async function sendWhatsAppGroupMessage({ groupId, text, imagePath, documentPath
       throw new Error("El campo 'groupId' es obligatorio y debe ser válido");
     }
 
-    // 3. Normalizar y validar campos
+    // 3. Normalizar campos
     const cleanText = text && typeof text === 'string' ? text.trim() : '';
     const cleanImagePath = imagePath && typeof imagePath === 'string' ? imagePath.trim() : '';
     const cleanDocPath = documentPath && typeof documentPath === 'string' ? documentPath.trim() : '';
 
-    const hasText = cleanText !== '';
-    const hasImage = cleanImagePath !== '';
-    const hasDocument = cleanDocPath !== '';
+    // 4. Validaciones independientes
+    const validations = {
+      hasText: cleanText !== '',
+      hasValidImage: false,
+      hasValidDocument: false,
+      imageBuffer: null,
+      documentBuffer: null
+    };
 
-    // 4. Validar que al menos haya un contenido
-    if (!hasText && !hasImage && !hasDocument) {
-      throw new Error("Debes proporcionar al menos un contenido: texto, imagen o documento");
+    // VALIDAR IMAGEN (sin enviar aún)
+    if (cleanImagePath) {
+      try {
+        if (fs.existsSync(cleanImagePath)) {
+          const buffer = fs.readFileSync(cleanImagePath);
+          if (buffer.length > 0) {
+            validations.imageBuffer = buffer;
+            validations.hasValidImage = true;
+            console.log(' Imagen validada:', cleanImagePath);
+          } else {
+            console.warn(' Imagen vacía:', cleanImagePath);
+          }
+        } else {
+          console.warn(' Imagen no encontrada:', cleanImagePath);
+        }
+      } catch (error) {
+        console.warn(' Error validando imagen:', error.message);
+      }
     }
 
-    const results = [];
-
-    // 5. Enviar texto primero (si hay)
-    if (hasText) {
-      await sock.sendMessage(groupId, { text: cleanText });
-      results.push({ type: "text", status: "ok", message: "Texto enviado correctamente" });
-      await delay(1200);
+    // VALIDAR DOCUMENTO (sin enviar aún)
+    if (cleanDocPath) {
+      try {
+        if (fs.existsSync(cleanDocPath)) {
+          const buffer = fs.readFileSync(cleanDocPath);
+          if (buffer.length > 0) {
+            validations.documentBuffer = buffer;
+            validations.hasValidDocument = true;
+            console.log(' Documento validado:', cleanDocPath);
+          } else {
+            console.warn(' Documento vacío:', cleanDocPath);
+          }
+        } else {
+          console.warn(' Documento no encontrado:', cleanDocPath);
+        }
+      } catch (error) {
+        console.warn(' Error validando documento:', error.message);
+      }
     }
 
-    // 6. Enviar imagen (SIN texto, ya se envió antes)
-    if (hasImage) {
-      if (!fs.existsSync(cleanImagePath)) {
-        throw new Error(`Imagen no encontrada: ${cleanImagePath}`);
-      }
-
-      const imageBuffer = fs.readFileSync(cleanImagePath);
-      
-      if (imageBuffer.length === 0) {
-        throw new Error(`La imagen está vacía: ${cleanImagePath}`);
-      }
-
-      await sock.sendMessage(groupId, {
-        image: imageBuffer,
-        fileName: path.basename(cleanImagePath),
-      });
-
-      results.push({ type: "image", status: "ok", message: "Imagen enviada correctamente" });
-      await delay(1200);
+    // 5. Verificar que haya al menos algo para enviar
+    if (!validations.hasText && !validations.hasValidImage && !validations.hasValidDocument) {
+      throw new Error('No hay contenido válido para enviar. Verifica el texto y las rutas de los archivos.');
     }
 
-    // 7. Enviar documento (si hay)
-    if (hasDocument) {
-      if (!fs.existsSync(cleanDocPath)) {
-        throw new Error(`Documento no encontrado: ${cleanDocPath}`);
+    // 6. ENVIAR LO QUE SEA VÁLIDO
+    const results = {
+      sentText: false,
+      sentImage: false,
+      sentDocument: false,
+      details: []
+    };
+
+    // Enviar texto
+    if (validations.hasText) {
+      try {
+        await sock.sendMessage(groupId, { text: cleanText });
+        results.sentText = true;
+        results.details.push({ type: "text", status: "ok" });
+        console.log(' Texto enviado');
+        await delay(800);
+      } catch (error) {
+        console.error(' Error enviando texto:', error.message);
       }
-
-      const docBuffer = fs.readFileSync(cleanDocPath);
-      
-      if (docBuffer.length === 0) {
-        throw new Error(`El documento está vacío: ${cleanDocPath}`);
-      }
-
-      await sock.sendMessage(groupId, {
-        document: docBuffer,
-        fileName: path.basename(cleanDocPath),
-        mimetype: "application/pdf",
-      });
-
-      results.push({ type: "document", status: "ok", message: "Documento enviado correctamente" });
     }
 
-    // 8. Retornar resultado general
+    // Enviar imagen (si es válida)
+    if (validations.hasValidImage) {
+      try {
+        await sock.sendMessage(groupId, {
+          image: validations.imageBuffer,
+          fileName: path.basename(cleanImagePath)
+        });
+        results.sentImage = true;
+        results.details.push({ type: "image", status: "ok" });
+        console.log(' Imagen enviada');
+        await delay(800);
+      } catch (error) {
+        console.error(' Error enviando imagen:', error.message);
+      }
+    }
+
+    // Enviar documento (si es válido)
+    if (validations.hasValidDocument) {
+      try {
+        await sock.sendMessage(groupId, {
+          document: validations.documentBuffer,
+          fileName: path.basename(cleanDocPath),
+          mimetype: "application/pdf"
+        });
+        results.sentDocument = true;
+        results.details.push({ type: "document", status: "ok" });
+        console.log(' Documento enviado');
+      } catch (error) {
+        console.error('Error enviando documento:', error.message);
+      }
+    }
+
+    // 7. Verificar que se haya enviado al menos algo
+    if (!results.sentText && !results.sentImage && !results.sentDocument) {
+      throw new Error('No se pudo enviar ningún contenido al grupo');
+    }
+
+    // 8. Retornar resultado
     return {
       success: true,
-      message: "Mensajes enviados correctamente",
+      ...results,
+      warnings: {
+        imageFailed: !!cleanImagePath && !validations.hasValidImage,
+        documentFailed: !!cleanDocPath && !validations.hasValidDocument
+      },
       groupId,
-      details: results,
+      timestamp: Date.now()
     };
+
   } catch (error) {
-    throw new Error(`Error al enviar mensaje(s): ${error.message}`);
+    throw error;
   }
 }
-
 
 module.exports = {
   connectToWhatsApp,

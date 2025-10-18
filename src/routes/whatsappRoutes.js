@@ -1,8 +1,6 @@
 const express = require('express');
-const { getStatus, qr, logout, groups, groupById, sendMessageToGroupAd } = require('../controllers/whatsappController');
-
-
-
+const { getStatus, qr, logout, groups, groupById, sendMessageToGroupAd } =
+    require('../controllers/whatsappController');
 const router = express.Router();
 
 router.get('/status', getStatus);
