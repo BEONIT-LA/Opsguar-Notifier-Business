@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WA Automation Hub</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #080b12;
+      --bg2:          #0f1320;
+      --bg3:          #161c2d;
+      --border:       rgba(99,179,255,0.08);
+      --border-hi:    rgba(99,179,255,0.18);
+      --accent:       #4f8ef7;
+      --accent-hover: #6aa0f8;
+      --accent-muted: rgba(79,142,247,0.12);
+      --purple:       #a78bfa;
+      --purple-muted: rgba(167,139,250,0.12);
+      --text:         #dde3f0;
+      --text-dim:     #7a8499;
+      --text-muted:   #3a4055;
+      --green:        #34d399;
+      --green-muted:  rgba(52,211,153,0.1);
+      --yellow:       #fbbf24;
+      --yellow-muted: rgba(251,191,36,0.1);
+      --red:          #f87171;
+      --red-muted:    rgba(248,113,113,0.1);
+      --blue:         #60a5fa;
+      --blue-muted:   rgba(96,165,250,0.1);
+      --radius:       10px;
+      --radius-sm:    6px;
+      --header-h:     56px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Dot grid background — n8n style */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Ambient glow */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 10% 15%, rgba(79,142,247,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 85%, rgba(167,139,250,0.07) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: rgba(8,11,18,0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 1.5rem;
+      gap: 0.75rem;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+      box-shadow: 0 0 16px rgba(79,142,247,0.3);
+    }
+    .logo-text {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .logo-sub {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    .header-sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.5rem; }
+
+    .header-nav { display: flex; gap: 2px; }
+    .nav-btn {
+      padding: 0.35rem 0.8rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: none;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .nav-btn:hover { color: var(--text); background: var(--bg3); }
+    .nav-btn.active { color: var(--accent); background: var(--accent-muted); }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .ws-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 0.28rem 0.7rem;
+      border-radius: 20px;
+    }
+    .ws-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 6px var(--red);
+      animation: pulse-anim 1.5s infinite;
+    }
+    .ws-dot.connected {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: none;
+    }
+    @keyframes pulse-anim { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+    /* ── APP SHELL ── */
+    .app {
+      padding-top: var(--header-h);
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── PAGES ── */
+    .page { display: none; padding: 1.75rem 2rem; max-width: 1300px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    .page-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      gap: 1rem;
+    }
+    .page-title { font-size: 1.2rem; font-weight: 600; }
+    .page-desc  { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .card + .card { margin-top: 1rem; }
+    .card-head {
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .ci {
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; flex-shrink: 0;
+    }
+    .card-body { padding: 1.1rem; }
+
+    /* ── LAYOUTS ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; align-items: start; }
+    .col     { display: flex; flex-direction: column; gap: 1rem; }
+    .gap     { margin-bottom: 1rem; }
+
+    /* ── BADGE ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.18rem 0.55rem; border-radius: 20px;
+      font-size: 0.72rem; font-weight: 500;
+    }
+    .bdot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .badge.green  { color: var(--green);  background: var(--green-muted);  }
+    .badge.yellow { color: var(--yellow); background: var(--yellow-muted); }
+    .badge.red    { color: var(--red);    background: var(--red-muted);    }
+    .badge.blue   { color: var(--blue);   background: var(--blue-muted);   }
+    .badge.purple { color: var(--purple); background: var(--purple-muted); }
+    .badge.muted  { color: var(--text-dim); background: var(--bg3); border: 1px solid var(--border); }
+
+    /* ── INPUTS ── */
+    .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.85rem; }
+    .label { font-size: 0.74rem; font-weight: 500; color: var(--text-dim); }
+
+    input, textarea, select {
+      font-family: inherit; font-size: 0.84rem;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text);
+      padding: 0.52rem 0.75rem; outline: none; width: 100%;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-muted);
+    }
+    input::placeholder, textarea::placeholder { color: var(--text-muted); }
+    select option { background: var(--bg3); color: var(--text); }
+    textarea { resize: vertical; }
+
+    .igroup { display: flex; gap: 0.5rem; }
+    .igroup input { flex: 1; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      font-family: inherit; font-size: 0.82rem; font-weight: 500;
+      border: none; border-radius: var(--radius-sm); cursor: pointer;
+      padding: 0.5rem 1rem; transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(255,107,53,0.3);
+    }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-ghost {
+      background: transparent; color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); background: var(--bg3); border-color: var(--border-hi); }
+    .btn-danger {
+      background: var(--red-muted); color: var(--red);
+      border: 1px solid rgba(239,68,68,0.18);
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.18); }
+    .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.75rem; }
+    .btn-full { width: 100%; justify-content: center; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+    .btn-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+    /* ── SESSION CARDS ── */
+    #sessions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    #sessions-empty {
+      color: var(--text-dim); font-size: 0.82rem;
+      text-align: center; padding: 2.5rem 1rem;
+      grid-column: 1/-1;
+    }
+    .s-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .s-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-color: var(--border-hi); }
+    .s-card.ready        { border-color: rgba(16,185,129,0.3); }
+    .s-card.qr_needed    { border-color: rgba(245,158,11,0.3); }
+    .s-card.failed       { border-color: rgba(239,68,68,0.3); }
+    .s-card.reconnecting { border-color: rgba(245,158,11,0.2); }
+
+    .s-card-top {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; margin-bottom: 0.75rem; gap: 0.5rem;
+    }
+    .s-card-id {
+      font-size: 0.85rem; font-weight: 600; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px;
+    }
+    .s-qr { display: none; flex-direction: column; align-items: center; gap: 0.5rem; margin: 0.75rem 0; }
+    .s-qr.visible { display: flex; }
+    .s-qr img { width: 150px; height: 150px; border-radius: 6px; }
+    .s-qr-hint { font-size: 0.68rem; color: var(--text-dim); text-align: center; line-height: 1.4; }
+    .s-card-btns { display: flex; gap: 0.4rem; margin-top: 0.75rem; }
+
+    /* ── STAT CARDS ── */
+    .stat-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 0.75rem; }
+    .stat-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 0.9rem;
+      text-align: center; transition: border-color 0.2s;
+    }
+    .stat-card:hover { border-color: var(--border-hi); }
+    .stat-val {
+      font-size: 1.6rem; font-weight: 700; color: var(--text);
+      line-height: 1; margin-bottom: 0.3rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-val.orange { color: var(--accent); }
+    .stat-val.green  { color: var(--green);  }
+    .stat-val.red    { color: var(--red);    }
+    .stat-lbl { font-size: 0.68rem; color: var(--text-dim); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* ── LOG ── */
+    #log {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0.65rem 0.8rem;
+      height: 160px; overflow-y: auto;
+      font-family: 'JetBrains Mono','Fira Code','Courier New',monospace;
+      font-size: 0.72rem; display: flex; flex-direction: column; gap: 0.12rem;
+    }
+    #log::-webkit-scrollbar { width: 4px; }
+    #log::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+    .le { line-height: 1.6; }
+    .le .ts { color: var(--text-muted); margin-right: 0.5rem; user-select: none; }
+    .le.ok    { color: var(--green);    }
+    .le.warn  { color: var(--yellow);   }
+    .le.error { color: var(--red);      }
+    .le.info  { color: var(--text-dim); }
+
+    /* ── GROUPS ── */
+    .g-controls { display: flex; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+    .g-controls select { width: 190px; flex-shrink: 0; }
+    .g-controls input  { flex: 1; min-width: 160px; }
+
+    #groups-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 460px; overflow-y: auto; }
+    #groups-list::-webkit-scrollbar { width: 4px; }
+    #groups-list::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+    #groups-empty-msg { color: var(--text-dim); font-size: 0.82rem; padding: 2.5rem; text-align: center; }
+
+    .g-item {
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 0.65rem 0.9rem; display: flex; align-items: center; gap: 0.75rem;
+      background: var(--bg3); transition: border-color 0.15s, background 0.15s;
+    }
+    .g-item:hover { border-color: var(--border-hi); background: var(--bg2); }
+    .g-avatar {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: var(--accent-muted); color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; flex-shrink: 0;
+    }
+    .g-info { flex: 1; min-width: 0; }
+    .g-name { font-size: 0.83rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .g-meta { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.1rem; }
+    .g-id {
+      font-size: 0.68rem; color: var(--text-muted);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 0.15rem 0.4rem;
+      max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; flex-shrink: 0; font-family: monospace;
+    }
+    .g-btns { display: flex; gap: 0.35rem; flex-shrink: 0; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 0.7rem 1.1rem;
+      font-size: 0.82rem; color: var(--text);
+      opacity: 0; transform: translateY(8px) scale(0.98);
+      transition: all 0.2s; pointer-events: none; z-index: 500;
+      max-width: 300px; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    }
+    #toast.show { opacity: 1; transform: translateY(0) scale(1); }
+    #toast.ok  { border-color: rgba(16,185,129,0.4); }
+    #toast.err { border-color: rgba(239,68,68,0.4);  }
+
+    /* ── DIVIDER ── */
+    .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+    /* ── API ENDPOINTS ── */
+    .ep-list { display: flex; flex-direction: column; gap: 0.35rem; }
+    .ep-section { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; padding: 0.75rem 0.2rem 0.3rem; }
+    .ep {
+      display: grid; grid-template-columns: 62px minmax(180px,220px) 1fr;
+      align-items: center; gap: 0.75rem;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0.55rem 0.9rem;
+      transition: border-color 0.15s; font-size: 0.8rem;
+    }
+    .ep:hover { border-color: var(--border-hi); }
+    .ep-method {
+      font-size: 0.65rem; font-weight: 700;
+      padding: 0.2rem 0.4rem; border-radius: 4px;
+      text-align: center; letter-spacing: 0.05em;
+    }
+    .ep-method.GET    { color: var(--green);  background: var(--green-muted);  }
+    .ep-method.POST   { color: var(--accent); background: var(--accent-muted); }
+    .ep-method.DELETE { color: var(--red);    background: var(--red-muted);    }
+    .ep-path { color: var(--text); font-family: monospace; font-size: 0.8rem; }
+    .ep-desc { color: var(--text-dim); font-size: 0.75rem; }
+
+    .ep-body {
+      background: var(--bg); border: 1px solid var(--border);
+      border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      padding: 0.65rem 0.9rem; margin-bottom: 0.4rem; margin-top: -3px;
+    }
+    .ep-body-title { font-size: 0.67rem; color: var(--text-muted); letter-spacing: 0.08em; margin-bottom: 0.4rem; text-transform: uppercase; }
+    .ep-field {
+      display: grid; grid-template-columns: 130px 80px 1fr;
+      gap: 0.5rem; font-size: 0.74rem; padding: 0.12rem 0;
+    }
+    .ep-fn { color: var(--text); font-family: monospace; }
+    .ep-ft { color: var(--purple); }
+    .ep-fr { color: var(--red);       font-size: 0.67rem; }
+    .ep-fo { color: var(--text-muted); font-size: 0.67rem; }
+    .ep-fd { color: var(--text-dim); }
+
+    /* ── HEALTH ── */
+    .health-status {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.6rem 0.9rem; border-radius: var(--radius-sm);
+      margin-bottom: 0.9rem; font-size: 0.82rem; font-weight: 500;
+    }
+    .health-status.ok       { background: var(--green-muted);  color: var(--green);  border: 1px solid rgba(16,185,129,0.2); }
+    .health-status.degraded { background: var(--yellow-muted); color: var(--yellow); border: 1px solid rgba(245,158,11,0.2); }
+    .health-status.error    { background: var(--red-muted);    color: var(--red);    border: 1px solid rgba(239,68,68,0.2);  }
+    .health-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+
+    .h-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 0.9rem; }
+    .hstat {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0.65rem 0.8rem;
+    }
+    .hstat-val { font-size: 1.05rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+    .hstat-key { font-size: 0.67rem; color: var(--text-dim); margin-top: 0.15rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .redis-badge { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 500; padding: 0.28rem 0.65rem; border-radius: 20px; }
+    .redis-ok    { color: var(--green); background: var(--green-muted); }
+    .redis-error { color: var(--red);   background: var(--red-muted);   }
+
+    /* ── INFO BOX ── */
+    .info-box {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0.9rem 1rem;
+      font-size: 0.82rem; color: var(--text-dim); line-height: 1.7;
+    }
+    .info-box strong { color: var(--text); }
+    .info-box .accent { color: var(--accent); font-weight: 600; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .stat-row { grid-template-columns: repeat(3,1fr); }
+      .header-nav .nav-btn .nav-label { display: none; }
+    }
+    @media (max-width: 600px) {
+      .page { padding: 1rem; }
+      .stat-row { grid-template-columns: repeat(2,1fr); }
+      .ep { grid-template-columns: 55px 1fr; }
+      .ep-desc { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">💬</div>
+    <div>
+      <div class="logo-text">WA Automation</div>
+      <div class="logo-sub">Multi-Session Hub</div>
+    </div>
+  </div>
+
+  <div class="header-sep"></div>
+
+  <nav class="header-nav">
+    <button class="nav-btn active" onclick="showPage('sessions')" data-page="sessions">⚡ <span class="nav-label">Sesiones</span></button>
+    <button class="nav-btn" onclick="showPage('send')" data-page="send">📨 <span class="nav-label">Enviar</span></button>
+    <button class="nav-btn" onclick="showPage('groups')" data-page="groups">👥 <span class="nav-label">Grupos</span></button>
+    <button class="nav-btn" onclick="showPage('system')" data-page="system">📊 <span class="nav-label">Sistema</span></button>
+    <button class="nav-btn" onclick="showPage('api')" data-page="api">📖 <span class="nav-label">API</span></button>
+  </nav>
+
+  <div class="header-right">
+    <div class="ws-pill">
+      <span id="ws-dot" class="ws-dot"></span>
+      <span id="ws-label" style="display:none">Desconectado</span>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- ── PAGE: SESIONES ── -->
+  <div class="page active" id="page-sessions">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Sesiones de WhatsApp</div>
+        <div class="page-desc">Gestiona y monitorea tus conexiones activas</div>
+      </div>
+    </div>
+
+    <!-- Nueva sesión -->
+    <div class="card gap">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="ci" style="background:var(--accent-muted);color:var(--accent)">＋</div>
+          Nueva Sesión
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="igroup">
+          <input id="new-session-input" type="text" placeholder="ID de sesión (ej: numero_1)" maxlength="40" />
+          <button class="btn btn-primary" onclick="createSession()">Crear sesión</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sesiones activas -->
+    <div class="card gap">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="ci" style="background:var(--green-muted);color:var(--green)">⚡</div>
+          Sesiones Activas
+        </div>
+        <span id="session-count" class="badge muted">0 nodos</span>
+      </div>
+      <div class="card-body">
+        <div id="sessions-grid">
+          <div id="sessions-empty">No hay sesiones. Crea una para comenzar.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cola -->
+    <div class="card gap">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="ci" style="background:var(--purple-muted);color:var(--purple)">⟳</div>
+          Cola de Mensajes
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="fetchQueueStats()">Actualizar</button>
+      </div>
+      <div class="card-body">
+        <div class="stat-row">
+          <div class="stat-card"><div class="stat-val" id="stat-waiting">–</div><div class="stat-lbl">En Espera</div></div>
+          <div class="stat-card"><div class="stat-val orange" id="stat-active">–</div><div class="stat-lbl">Activos</div></div>
+          <div class="stat-card"><div class="stat-val green" id="stat-completed">–</div><div class="stat-lbl">Completados</div></div>
+          <div class="stat-card"><div class="stat-val red" id="stat-failed">–</div><div class="stat-lbl">Fallidos</div></div>
+          <div class="stat-card"><div class="stat-val" id="stat-delayed">–</div><div class="stat-lbl">Retrasados</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="ci" style="background:var(--bg3)">📋</div>
+          Registro de Actividad
+        </div>
+      </div>
+      <div class="card-body" style="padding:0.75rem">
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: ENVIAR ── -->
+  <div class="page" id="page-send">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Enviar Mensaje</div>
+        <div class="page-desc">Encola un mensaje — el sistema distribuye automáticamente entre sesiones disponibles</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <div class="ci" style="background:var(--accent-muted);color:var(--accent)">📨</div>
+            Componer Mensaje
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label class="label">ID del Grupo Destino <span style="color:var(--red)">*</span></label>
+            <input id="send-group" type="text" placeholder="120363xxxxxxxx@g.us" />
+          </div>
+          <div class="field">
+            <label class="label">Texto del Mensaje</label>
+            <textarea id="send-text" rows="4" placeholder="Escribe tu mensaje aquí..."></textarea>
+          </div>
+          <div class="field">
+            <label class="label">Ruta de Imagen <span style="color:var(--text-muted);font-size:0.72rem">(opcional)</span></label>
+            <input id="send-image" type="text" placeholder="/ruta/a/imagen.jpg" />
+          </div>
+          <div class="field">
+            <label class="label">Ruta de Documento <span style="color:var(--text-muted);font-size:0.72rem">(opcional)</span></label>
+            <input id="send-doc" type="text" placeholder="/ruta/a/archivo.pdf" />
+          </div>
+          <button class="btn btn-primary btn-full" onclick="sendMessage()" style="margin-top:0.25rem">
+            ⚡ Encolar Mensaje
+          </button>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">💡 Cómo funciona</div>
+          </div>
+          <div class="card-body">
+            <div class="info-box">
+              Los mensajes se procesan a través de <strong>Redis/BullMQ</strong> de forma asíncrona.<br><br>
+              El sistema usa <strong>round-robin</strong> para distribuir envíos entre sesiones listas.<br><br>
+              Concurrencia máxima: <span class="accent">5 mensajes</span> simultáneos.
+              <div class="divider"></div>
+              <span style="font-size:0.72rem;color:var(--text-muted)">* Se requiere al menos: texto, imagen o documento.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <div class="ci" style="background:var(--purple-muted);color:var(--purple)">⟳</div>
+              Estado de la Cola
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="fetchQueueStats()">↺</button>
+          </div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem">
+              <div class="stat-card"><div class="stat-val" id="stat-waiting2">–</div><div class="stat-lbl">Esperando</div></div>
+              <div class="stat-card"><div class="stat-val orange" id="stat-active2">–</div><div class="stat-lbl">Activos</div></div>
+              <div class="stat-card"><div class="stat-val green" id="stat-completed2">–</div><div class="stat-lbl">Completados</div></div>
+              <div class="stat-card"><div class="stat-val red" id="stat-failed2">–</div><div class="stat-lbl">Fallidos</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: GRUPOS ── -->
+  <div class="page" id="page-groups">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Explorador de Grupos</div>
+        <div class="page-desc">Busca y gestiona los grupos de WhatsApp disponibles</div>
+      </div>
+      <span id="groups-count" class="badge muted"></span>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="ci" style="background:var(--blue-muted);color:var(--blue)">👥</div>
+          Grupos Disponibles
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="g-controls">
+          <select id="groups-session-select">
+            <option value="">— Seleccionar sesión —</option>
+          </select>
+          <input id="groups-search" type="text" placeholder="Filtrar por nombre o ID..." oninput="filterGroups()" />
+          <button class="btn btn-primary" onclick="loadGroups()">🔍 Buscar grupos</button>
+        </div>
+        <div id="groups-list">
+          <div id="groups-empty-msg">Selecciona una sesión y haz clic en "Buscar grupos" para comenzar.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: SISTEMA ── -->
+  <div class="page" id="page-system">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Monitor del Sistema</div>
+        <div class="page-desc">Salud del servidor, memoria y estado de Redis</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <div class="ci" style="background:var(--green-muted);color:var(--green)">💊</div>
+            Estado del Sistema
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="fetchHealth()">Verificar</button>
+        </div>
+        <div class="card-body">
+          <div id="health-badge" class="health-status" style="margin-bottom:1rem">
+            <span class="health-dot"></span>
+            <span id="health-status-label">Verificando...</span>
+          </div>
+          <div class="h-grid">
+            <div class="hstat"><div class="hstat-val" id="h-uptime">–</div><div class="hstat-key">Tiempo activo (s)</div></div>
+            <div class="hstat"><div class="hstat-val" id="h-heap">–</div><div class="hstat-key">Heap MB</div></div>
+            <div class="hstat"><div class="hstat-val" id="h-rss">–</div><div class="hstat-key">RSS MB</div></div>
+            <div class="hstat"><div class="hstat-val" id="h-sessions">–</div><div class="hstat-key">Sesiones (listas/total)</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <span style="font-size:0.75rem;color:var(--text-dim)">Redis</span>
+            <span id="h-redis" class="redis-badge redis-ok">Desconocido</span>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.75rem" id="h-ts">Último chequeo: –</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <div class="ci" style="background:var(--purple-muted);color:var(--purple)">⟳</div>
+            Cola BullMQ
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="fetchQueueStats()">↺</button>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem">
+            <div class="stat-card"><div class="stat-val" id="stat-waiting3">–</div><div class="stat-lbl">En Espera</div></div>
+            <div class="stat-card"><div class="stat-val orange" id="stat-active3">–</div><div class="stat-lbl">Activos</div></div>
+            <div class="stat-card"><div class="stat-val green" id="stat-completed3">–</div><div class="stat-lbl">Completados</div></div>
+            <div class="stat-card"><div class="stat-val red" id="stat-failed3">–</div><div class="stat-lbl">Fallidos</div></div>
+            <div class="stat-card" style="grid-column:span 2"><div class="stat-val" id="stat-delayed3">–</div><div class="stat-lbl">Retrasados</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: API ── -->
+  <div class="page" id="page-api">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Referencia de API</div>
+        <div class="page-desc">Todos los endpoints REST disponibles</div>
+      </div>
+      <span style="font-size:0.74rem;color:var(--text-dim)">Base: <code style="color:var(--text);background:var(--bg3);padding:0.1rem 0.4rem;border-radius:4px">http://localhost:3000</code></span>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <div class="ci" style="background:var(--blue-muted);color:var(--blue)">📖</div>
+          Endpoints REST
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="ep-list">
+
+          <div class="ep-section">Sesiones</div>
+          <div class="ep"><span class="ep-method POST">POST</span><span class="ep-path">/api/sessions</span><span class="ep-desc">Crear nueva sesión · body: { sessionId }</span></div>
+          <div class="ep"><span class="ep-method GET">GET</span><span class="ep-path">/api/sessions</span><span class="ep-desc">Listar todas las sesiones y su estado</span></div>
+          <div class="ep"><span class="ep-method DELETE">DELETE</span><span class="ep-path">/api/sessions/:id</span><span class="ep-desc">Eliminar sesión por ID</span></div>
+          <div class="ep"><span class="ep-method GET">GET</span><span class="ep-path">/api/sessions/:id/qr</span><span class="ep-desc">Obtener QR como base64 PNG</span></div>
+
+          <div class="ep-section">Mensajes</div>
+          <div class="ep"><span class="ep-method POST">POST</span><span class="ep-path">/api/send</span><span class="ep-desc">Encolar mensaje (round-robin automático)</span></div>
+          <div class="ep-body">
+            <div class="ep-body-title">Body · application/json</div>
+            <div class="ep-field"><span class="ep-fn">groupId</span><span class="ep-ft">string <span class="ep-fr">*req</span></span><span class="ep-fd">ID del grupo · ej: <code style="color:var(--text)">120363xxx@g.us</code></span></div>
+            <div class="ep-field"><span class="ep-fn">text</span><span class="ep-ft">string <span class="ep-fo">opt</span></span><span class="ep-fd">Texto del mensaje</span></div>
+            <div class="ep-field"><span class="ep-fn">imagePath</span><span class="ep-ft">string <span class="ep-fo">opt</span></span><span class="ep-fd">Ruta absoluta a imagen</span></div>
+            <div class="ep-field"><span class="ep-fn">documentPath</span><span class="ep-ft">string <span class="ep-fo">opt</span></span><span class="ep-fd">Ruta absoluta a documento</span></div>
+          </div>
+          <div class="ep"><span class="ep-method GET">GET</span><span class="ep-path">/api/queue/stats</span><span class="ep-desc">Stats de la cola BullMQ</span></div>
+
+          <div class="ep-section">Grupos</div>
+          <div class="ep"><span class="ep-method GET">GET</span><span class="ep-path">/api/groups</span><span class="ep-desc">Listar grupos · query: ?sessionId=xxx</span></div>
+          <div class="ep"><span class="ep-method GET">GET</span><span class="ep-path">/api/group/:groupId</span><span class="ep-desc">Metadata de un grupo · query: ?sessionId=xxx</span></div>
+
+          <div class="ep-section">Sistema</div>
+          <div class="ep"><span class="ep-method GET">GET</span><span class="ep-path">/api/health</span><span class="ep-desc">Health check: uptime, memoria, Redis, sesiones</span></div>
+          <div class="ep"><span class="ep-method GET">GET</span><span class="ep-path">/api/status</span><span class="ep-desc">Estado global (compatibilidad legacy)</span></div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<script>
+  // ── Navegación ───────────────────────────────────────────────
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    document.querySelector('[data-page="' + name + '"]').classList.add('active');
+  }
+
+
+  // ── Estado local ─────────────────────────────────────────────
+  const state = {};
+
+  // ── Socket.io ────────────────────────────────────────────────
+  const socket = io();
+
+  socket.on('connect', () => {
+    document.getElementById('ws-dot').classList.add('connected');
+    document.getElementById('ws-label').textContent = 'Conectado';
+    log('Socket conectado', 'ok');
+    fetchQueueStats();
+  });
+
+  socket.on('disconnect', () => {
+    document.getElementById('ws-dot').classList.remove('connected');
+    document.getElementById('ws-label').textContent = 'Desconectado';
+    log('Socket desconectado', 'error');
+  });
+
+  socket.on('sessions:state', (sessions) => {
+    Object.keys(state).forEach(id => { if (!sessions[id]) delete state[id]; });
+    Object.assign(state, sessions);
+    renderSessions();
+  });
+
+  socket.on('session:qr', ({ sessionId, qrBase64 }) => {
+    if (state[sessionId]) { state[sessionId].qrBase64 = qrBase64; state[sessionId].status = 'qr_needed'; }
+    renderSessions();
+    log('QR disponible: ' + sessionId, 'warn');
+  });
+
+  socket.on('session:ready', ({ sessionId }) => {
+    if (state[sessionId]) { state[sessionId].status = 'ready'; state[sessionId].isReady = true; state[sessionId].qrBase64 = null; }
+    renderSessions();
+    log('Sesión conectada: ' + sessionId, 'ok');
+    toast(sessionId + ' conectada', 'ok');
+  });
+
+  socket.on('session:disconnected', ({ sessionId }) => {
+    if (state[sessionId]) state[sessionId].isReady = false;
+    log('Sesión perdida: ' + sessionId + ' — reintentando...', 'warn');
+  });
+
+  socket.on('session:failed', ({ sessionId, reason }) => {
+    if (state[sessionId]) { state[sessionId].status = 'failed'; state[sessionId].isReady = false; }
+    renderSessions();
+    log('Sesión caída: ' + sessionId + ' [' + reason + ']', 'error');
+    toast(sessionId + ' falló', 'err');
+  });
+
+  socket.on('session:removed', ({ sessionId }) => {
+    delete state[sessionId];
+    renderSessions();
+    log('Sesión eliminada: ' + sessionId, 'info');
+  });
+
+  socket.on('job:warn', ({ message }) => {
+    log('⚠ ' + message, 'error');
+    toast('Error en job — revisa el registro', 'err');
+  });
+
+  // ── Render sesiones ──────────────────────────────────────────
+  function renderSessions() {
+    const grid  = document.getElementById('sessions-grid');
+    const empty = document.getElementById('sessions-empty');
+    const ids   = Object.keys(state);
+
+    document.getElementById('session-count').textContent = ids.length + ' nodo' + (ids.length !== 1 ? 's' : '');
+
+    if (ids.length === 0) {
+      grid.innerHTML = '';
+      grid.appendChild(empty);
+      empty.style.display = 'block';
+      updateGroupsSelect();
+      return;
+    }
+    empty.style.display = 'none';
+
+    ids.forEach(id => {
+      let card = document.getElementById('sc-' + id);
+      if (!card) { card = document.createElement('div'); card.id = 'sc-' + id; grid.appendChild(card); }
+      const s = state[id];
+      card.className = 's-card ' + s.status;
+      card.innerHTML = buildCard(id, s);
+    });
+
+    grid.querySelectorAll('.s-card').forEach(c => {
+      const id = c.id.replace('sc-', '');
+      if (!state[id]) c.remove();
+    });
+
+    updateGroupsSelect();
+  }
+
+  const STATUS_CFG = {
+    ready:        { label: 'En línea',       cls: 'green'  },
+    qr_needed:    { label: 'Escanear QR',    cls: 'yellow' },
+    connecting:   { label: 'Conectando…',    cls: 'muted'  },
+    reconnecting: { label: 'Reintentando…',  cls: 'yellow' },
+    failed:       { label: 'Caída',          cls: 'red'    },
+    logged_out:   { label: 'Cerrada',        cls: 'red'    },
+  };
+
+  function buildCard(id, s) {
+    const cfg = STATUS_CFG[s.status] || { label: s.status, cls: 'muted' };
+    const retry = s.retryCount > 0 ? ' (' + s.retryCount + '/3)' : '';
+    const qrHTML = (s.status === 'qr_needed' && s.qrBase64)
+      ? '<div class="s-qr visible"><img src="' + s.qrBase64 + '" alt="QR"/><span class="s-qr-hint">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</span></div>'
+      : '';
+    return '<div class="s-card-top"><div class="s-card-id" title="' + id + '">' + id + '</div>'
+      + '<span class="badge ' + cfg.cls + '"><span class="bdot"></span>' + cfg.label + retry + '</span></div>'
+      + qrHTML
+      + '<div class="s-card-btns">'
+      + '<button class="btn btn-ghost btn-sm" onclick="refreshQR(\'' + id + '\')" ' + (s.isReady ? 'disabled' : '') + '>QR</button>'
+      + '<button class="btn btn-danger btn-sm" onclick="deleteSession(\'' + id + '\')">Eliminar</button>'
+      + '</div>';
+  }
+
+  // ── API ──────────────────────────────────────────────────────
+  async function createSession() {
+    const input = document.getElementById('new-session-input');
+    const sessionId = input.value.trim();
+    if (!sessionId) return toast('SESSION_ID es requerido', 'err');
+    const res  = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }) });
+    const data = await res.json();
+    if (data.success) {
+      input.value = '';
+      state[data.data.sessionId] = { status: 'connecting', isReady: false, hasQR: false, retryCount: 0 };
+      renderSessions();
+      log('Sesión iniciada: ' + data.data.sessionId, 'ok');
+      toast(data.data.sessionId + ' iniciando', 'ok');
+    } else { toast(data.message, 'err'); }
+  }
+
+  async function deleteSession(id) {
+    if (!confirm('¿Eliminar la sesión "' + id + '"?')) return;
+    const res  = await fetch('/api/sessions/' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) toast(data.message, 'err');
+  }
+
+  async function refreshQR(id) {
+    const res  = await fetch('/api/sessions/' + id + '/qr');
+    const data = await res.json();
+    if (data.success && data.data?.qrBase64) {
+      if (state[id]) state[id].qrBase64 = data.data.qrBase64;
+      renderSessions();
+    } else { toast(data.message || 'QR no disponible', 'err'); }
+  }
+
+  async function sendMessage() {
+    const groupId      = document.getElementById('send-group').value.trim();
+    const text         = document.getElementById('send-text').value.trim();
+    const imagePath    = document.getElementById('send-image').value.trim();
+    const documentPath = document.getElementById('send-doc').value.trim();
+    if (!groupId)                             return toast('ID de grupo requerido', 'err');
+    if (!text && !imagePath && !documentPath) return toast('El mensaje está vacío', 'err');
+    const res  = await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groupId, text, imagePath, documentPath }) });
+    const data = await res.json();
+    if (data.success) {
+      toast('Encolado · job:' + data.data.jobId, 'ok');
+      log('Mensaje encolado · grupo=' + groupId + ' · job=' + data.data.jobId, 'ok');
+      fetchQueueStats();
+    } else { toast(data.message, 'err'); }
+  }
+
+  function syncQueueUI(s) {
+    ['', '2', '3'].forEach(sfx => {
+      const set = (id, val) => { const el = document.getElementById(id + sfx); if (el) el.textContent = val; };
+      set('stat-waiting',   s.waiting);
+      set('stat-active',    s.active);
+      set('stat-completed', s.completed);
+      set('stat-failed',    s.failed);
+      set('stat-delayed',   s.delayed);
+    });
+  }
+
+  async function fetchQueueStats() {
+    try {
+      const res  = await fetch('/api/queue/stats');
+      const data = await res.json();
+      if (data.success) syncQueueUI(data.data);
+    } catch (_) {}
+  }
+
+  // ── Grupos ───────────────────────────────────────────────────
+  let allGroups = [];
+
+  function updateGroupsSelect() {
+    const sel     = document.getElementById('groups-session-select');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— Seleccionar sesión —</option>';
+    Object.entries(state).forEach(([id, s]) => {
+      if (!s.isReady) return;
+      const opt = document.createElement('option');
+      opt.value = id; opt.textContent = id;
+      if (id === current) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadGroups() {
+    const sessionId = document.getElementById('groups-session-select').value;
+    if (!sessionId) return toast('Selecciona una sesión primero', 'err');
+    document.getElementById('groups-list').innerHTML = '<div id="groups-empty-msg">Cargando grupos…</div>';
+    try {
+      const res  = await fetch('/api/groups?sessionId=' + encodeURIComponent(sessionId));
+      const data = await res.json();
+      if (!data.success) return toast(data.message || 'Error al cargar', 'err');
+      allGroups = data.data.sort((a, b) => a.name.localeCompare(b.name));
+      document.getElementById('groups-search').value = '';
+      renderGroups(allGroups);
+      log('Grupos cargados: ' + allGroups.length + ' de ' + sessionId, 'ok');
+    } catch (e) { toast('Error de conexión', 'err'); }
+  }
+
+  function filterGroups() {
+    const q = document.getElementById('groups-search').value.toLowerCase();
+    renderGroups(q ? allGroups.filter(g => g.name.toLowerCase().includes(q) || g.id.includes(q)) : allGroups);
+  }
+
+  function renderGroups(list) {
+    const container = document.getElementById('groups-list');
+    const countEl   = document.getElementById('groups-count');
+    if (list.length === 0) {
+      container.innerHTML = '<div id="groups-empty-msg">Sin resultados.</div>';
+      countEl.textContent = ''; return;
+    }
+    countEl.textContent = list.length + ' grupos';
+    container.innerHTML = list.map(g =>
+      '<div class="g-item">'
+      + '<div class="g-avatar">' + g.name.charAt(0).toUpperCase() + '</div>'
+      + '<div class="g-info"><div class="g-name" title="' + g.name + '">' + g.name + '</div><div class="g-meta">' + g.participantsCount + ' miembros</div></div>'
+      + '<span class="g-id" title="' + g.id + '">' + g.id + '</span>'
+      + '<div class="g-btns">'
+      + '<button class="btn btn-ghost btn-sm" onclick="copyGroupId(\'' + g.id + '\')">Copiar</button>'
+      + '<button class="btn btn-primary btn-sm" onclick="useGroupId(\'' + g.id + '\')">Usar</button>'
+      + '</div></div>'
+    ).join('');
+  }
+
+  function copyGroupId(id) {
+    navigator.clipboard.writeText(id).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = id; document.body.appendChild(el); el.select();
+      document.execCommand('copy'); document.body.removeChild(el);
+    });
+    toast('Copiado: ' + id, 'ok');
+    log('Portapapeles: ' + id, 'info');
+  }
+
+  function useGroupId(id) {
+    document.getElementById('send-group').value = id;
+    copyGroupId(id);
+    showPage('send');
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+  function log(msg, type) {
+    type = type || 'info';
+    const el    = document.getElementById('log');
+    const time  = new Date().toLocaleTimeString('en-GB');
+    const entry = document.createElement('div');
+    entry.className = 'le ' + type;
+    entry.innerHTML = '<span class="ts">' + time + '</span>' + msg;
+    el.appendChild(entry);
+    el.scrollTop = el.scrollHeight;
+    while (el.children.length > 80) el.removeChild(el.firstChild);
+  }
+
+  let _tt;
+  function toast(msg, type) {
+    type = type || 'ok';
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show ' + type;
+    clearTimeout(_tt);
+    _tt = setTimeout(() => { el.className = ''; }, 3000);
+  }
+
+  document.getElementById('new-session-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') createSession();
+  });
+
+  setInterval(fetchQueueStats, 10000);
+
+  // ── Health ───────────────────────────────────────────────────
+  async function fetchHealth() {
+    try {
+      const res  = await fetch('/api/health');
+      const data = await res.json();
+      if (!data.success) return;
+      const d = data.data;
+      const badge = document.getElementById('health-badge');
+      badge.className = 'health-status ' + d.status;
+      document.getElementById('health-status-label').textContent = d.status === 'ok' ? 'Sistema operativo' : 'Sistema degradado';
+      document.getElementById('h-uptime').textContent   = d.uptime;
+      document.getElementById('h-heap').textContent     = d.memory.heapUsedMB + '/' + d.memory.heapTotalMB;
+      document.getElementById('h-rss').textContent      = d.memory.rssMB;
+      document.getElementById('h-sessions').textContent = d.sessions.ready + '/' + d.sessions.total;
+      const rb = document.getElementById('h-redis');
+      rb.textContent = d.redis === 'ok' ? '● Conectado' : '● Error';
+      rb.className   = 'redis-badge ' + (d.redis === 'ok' ? 'redis-ok' : 'redis-error');
+      document.getElementById('h-ts').textContent = 'Último chequeo: ' + new Date(d.timestamp).toLocaleTimeString('en-GB');
+    } catch (_) {
+      document.getElementById('health-badge').className = 'health-status error';
+      document.getElementById('health-status-label').textContent = 'Inaccesible';
+    }
+  }
+
+  fetchHealth();
+  setInterval(fetchHealth, 30000);
+</script>
+</body>
+</html>
