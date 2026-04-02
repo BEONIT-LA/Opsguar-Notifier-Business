@@ -19,6 +19,8 @@ class SessionManager extends EventEmitter {
     // Map<sessionId, { sock, isReady, qrCode, qrBase64, status, retryCount }>
     this.sessions = new Map();
     this._rrIndex = 0;
+    // Map<phoneNumber, sessionId> para detectar duplicados
+    this._phoneIndex = new Map();
   }
 
   /**
@@ -44,7 +46,18 @@ class SessionManager extends EventEmitter {
     const id = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
     if (this.sessions.has(id)) {
-      return { error: 'La sesión ya existe' };
+      const existing = this.sessions.get(id);
+      const recoverable = ['failed', 'logged_out'].includes(existing.status);
+
+      if (!recoverable) {
+        return { error: 'La sesión ya existe y está activa' };
+      }
+
+      // Sesión caída o cerrada — limpiar y reconectar automáticamente
+      console.log(`[Session:${id}] Sesión en estado "${existing.status}", reconectando...`);
+      if (existing.phone) this._phoneIndex.delete(existing.phone);
+      try { if (existing.sock) await existing.sock.logout(); } catch (_) {}
+      this.sessions.delete(id);
     }
 
     this.sessions.set(id, {
@@ -54,6 +67,7 @@ class SessionManager extends EventEmitter {
       qrBase64: null,
       status: 'connecting',
       retryCount: 0,
+      phone: null,
     });
 
     await this._connect(id);
@@ -110,6 +124,12 @@ class SessionManager extends EventEmitter {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
 
+      // Limpiar número del índice al desconectarse
+      if (session.phone) {
+        this._phoneIndex.delete(session.phone);
+        session.phone = null;
+      }
+
       session.isReady = false;
       session.qrCode = null;
       session.qrBase64 = null;
@@ -124,13 +144,34 @@ class SessionManager extends EventEmitter {
     }
 
     if (connection === 'open') {
+      // Extraer número del JID (ej: "521234567890:12@s.whatsapp.net" → "521234567890")
+      const rawJid = session.sock?.user?.id || '';
+      const phone  = rawJid.split(':')[0].split('@')[0] || null;
+
+      // Detectar si ese número ya está en otra sesión activa
+      if (phone && this._phoneIndex.has(phone)) {
+        const existing = this._phoneIndex.get(phone);
+        if (existing !== sessionId) {
+          console.warn(`[Session:${sessionId}] Número ${phone} ya está en uso por "${existing}". Desconectando duplicado.`);
+          session.status = 'failed';
+          session.isReady = false;
+          try { await session.sock.logout(); } catch (_) {}
+          this.emit('session:failed', { sessionId, reason: `Número duplicado — ya en uso por "${existing}"` });
+          return;
+        }
+      }
+
       session.isReady = true;
       session.qrCode = null;
       session.qrBase64 = null;
       session.status = 'ready';
       session.retryCount = 0;
-      console.log(`[Session:${sessionId}] Conectado ✓`);
-      this.emit('session:ready', { sessionId });
+      session.phone = phone;
+
+      if (phone) this._phoneIndex.set(phone, sessionId);
+
+      console.log(`[Session:${sessionId}] Conectado ✓ — número: ${phone || 'desconocido'}`);
+      this.emit('session:ready', { sessionId, phone });
     }
   }
 
@@ -165,6 +206,9 @@ class SessionManager extends EventEmitter {
       if (session.sock) await session.sock.logout();
     } catch (_) { /* ignorar errores de logout */ }
 
+    // Limpiar del índice de teléfonos
+    if (session.phone) this._phoneIndex.delete(session.phone);
+
     // Solo borra la carpeta de ESTA sesión, nunca las demás
     const authDir = path.join(AUTH_BASE_DIR, sessionId);
     fs.rmSync(authDir, { recursive: true, force: true });
@@ -184,6 +228,7 @@ class SessionManager extends EventEmitter {
         isReady: s.isReady,
         hasQR: !!s.qrCode,
         retryCount: s.retryCount,
+        phone: s.phone || null,
       };
     }
     return result;

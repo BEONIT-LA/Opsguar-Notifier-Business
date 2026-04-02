@@ -15,6 +15,9 @@ router.get('/queue/stats', ctrl.queueStats);
 // ─── Health check ─────────────────────────────────────────────
 router.get('/health', ctrl.health);
 
+// ─── Auditoría ────────────────────────────────────────────────
+router.get('/audit', ctrl.auditLogs); // ?date=YYYY-MM-DD &session=xxx &status=completed|failed
+
 // ─── Compatibilidad con endpoints anteriores ──────────────────
 router.get('/status', ctrl.getStatus);
 router.get('/groups', ctrl.groups);            // ?sessionId=xxx (opcional)

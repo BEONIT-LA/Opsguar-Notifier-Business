@@ -4,7 +4,11 @@
   "description": "To make it easy for you to get started with GitLab, here's a list of recommended next steps.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev":        "node server.js",
+    "ui:dev":     "cd frontend && npm run dev",
+    "ui:build":   "cd frontend && npm run build",
+    "ui:install": "cd frontend && npm install",
+    "start":      "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +19,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "ioredis": "^5.0.0",
+    "jsonwebtoken": "^9.0.3",
     "pino": "^10.0.0",
     "qrcode": "^1.5.3",
     "qrcode-terminal": "^0.12.0",

@@ -13,10 +13,10 @@ connection.on('error', (err) => console.error('[Redis] Error:', err.message));
 const messageQueue = new Queue('whatsapp-messages', {
   connection,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2000 },
-    removeOnComplete: 100,
-    removeOnFail: 50,
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 15000 },
+    removeOnComplete: 1000,
+    removeOnFail: 500,
   },
 });
 
@@ -26,14 +26,24 @@ async function enqueueMessage(data) {
 }
 
 async function getQueueStats() {
-  const [waiting, active, completed, failed, delayed] = await Promise.all([
+  const [waiting, active, completed, failed, delayed, totalCompleted, totalFailed] = await Promise.all([
     messageQueue.getWaitingCount(),
     messageQueue.getActiveCount(),
     messageQueue.getCompletedCount(),
     messageQueue.getFailedCount(),
     messageQueue.getDelayedCount(),
+    connection.get('wa:stats:completed'),
+    connection.get('wa:stats:failed'),
   ]);
-  return { waiting, active, completed, failed, delayed };
+  return {
+    waiting,
+    active,
+    completed,
+    failed,
+    delayed,
+    totalCompleted: parseInt(totalCompleted || '0', 10),
+    totalFailed:    parseInt(totalFailed    || '0', 10),
+  };
 }
 
 module.exports = { messageQueue, enqueueMessage, getQueueStats };

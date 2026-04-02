@@ -75,7 +75,8 @@ async function sendMessage(req, res) {
       });
     }
 
-    const jobId = await enqueueMessage({ groupId, text, imagePath, documentPath });
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'desconocida';
+    const jobId = await enqueueMessage({ groupId, text, imagePath, documentPath, _ip: ip });
     return res.status(202).json({
       success: true,
       message: 'Mensaje encolado. Un worker lo enviará usando round-robin.',
@@ -199,6 +200,24 @@ function getStatus(req, res) {
   });
 }
 
+const { readEntries, listDates } = require('../services/auditService');
+
+async function auditLogs(req, res) {
+  try {
+    const dates = listDates();
+    const date  = req.query.date || dates[0] || new Date().toISOString().split('T')[0];
+    let entries = readEntries(date);
+
+    // Filtros opcionales
+    if (req.query.session) entries = entries.filter(e => e.sessionId === req.query.session);
+    if (req.query.status)  entries = entries.filter(e => e.status    === req.query.status);
+
+    return res.json({ success: true, data: { date, dates, entries } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 module.exports = {
   listSessions,
   createSession,
@@ -210,4 +229,5 @@ module.exports = {
   groupById,
   getStatus,
   health,
+  auditLogs,
 };
