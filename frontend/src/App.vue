@@ -34,16 +34,27 @@
   --radius:       10px;
   --radius-sm:    6px;
   --header-h:     56px;
+
+  /* ── Tipografía ────────────────────────────────────────────── */
+  /* Space Grotesk: geométrica, moderna — ideal para dashboards tech */
+  --font-ui:   'Space Grotesk', system-ui, -apple-system, sans-serif;
+  /* JetBrains Mono: para datos técnicos — IDs, números, logs, código */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-ui);
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* ── Clases globales de fuente ── */
+code, .mono         { font-family: var(--font-mono); }
+.font-mono          { font-family: var(--font-mono); }
+.tabular-nums       { font-variant-numeric: tabular-nums; }
 
 /* Dot grid — efecto de fondo estilo n8n */
 body::before {

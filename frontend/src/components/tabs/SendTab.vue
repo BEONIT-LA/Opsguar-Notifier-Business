@@ -164,7 +164,7 @@ async function sendMessage() {
 .queue-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem; }
 .queue-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .q-stat { text-align: center; }
-.q-val  { font-size: 1.4rem; font-weight: 700; }
+.q-val  { font-size: 1.4rem; font-weight: 600; font-family: var(--font-mono); letter-spacing: -0.02em; }
 .q-val.yellow { color: var(--yellow); }
 .q-val.accent { color: var(--accent); }
 .q-val.green  { color: var(--green); }

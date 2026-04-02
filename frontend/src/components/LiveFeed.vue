@@ -76,11 +76,14 @@ const feed = useLiveFeedStore()
   font-weight: 600;
   color: var(--text-dim);
   white-space: nowrap;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 
 .feed-count {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 .unread-badge {
@@ -130,23 +133,24 @@ const feed = useLiveFeedStore()
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  padding: 0.25rem 1.25rem;
-  font-size: 0.78rem;
+  padding: 0.22rem 1.25rem;
+  font-size: 0.76rem;
+  font-family: var(--font-mono);
   border-bottom: 1px solid rgba(255,255,255,0.02);
   transition: background 0.1s;
 }
-.feed-entry:hover { background: rgba(255,255,255,0.02); }
+.feed-entry:hover { background: rgba(255,255,255,0.025); }
 
 .entry-time {
   color: var(--text-muted);
-  font-family: monospace;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   white-space: nowrap;
   flex-shrink: 0;
+  opacity: 0.7;
 }
 
-.entry-msg { color: var(--text-dim); line-height: 1.4; }
-.entry-msg b { color: var(--text); font-weight: 600; }
+.entry-msg { color: var(--text-dim); line-height: 1.5; }
+.entry-msg b { color: var(--text); font-weight: 500; }
 
 /* Colores por tipo */
 .feed-entry.success .entry-msg { color: var(--green);  }

@@ -148,12 +148,15 @@ async function handleLogin() {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  font-family: var(--font-ui);
 }
 
 .brand-sub {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--text-dim);
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
 }
 
 .login-title {

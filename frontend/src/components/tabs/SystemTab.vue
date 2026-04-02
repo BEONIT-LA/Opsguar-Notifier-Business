@@ -167,7 +167,7 @@ function formatUptime(seconds) {
 .sys-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
 .sys-stats.small { grid-template-columns: repeat(2, 1fr); }
 .sys-stat  { text-align: center; }
-.sys-val   { font-size: 1.5rem; font-weight: 700; }
+.sys-val   { font-size: 1.5rem; font-weight: 600; font-family: var(--font-mono); letter-spacing: -0.03em; }
 .sys-val.green  { color: var(--green);  }
 .sys-val.red    { color: var(--red);    }
 .sys-val.yellow { color: var(--yellow); }
@@ -182,7 +182,7 @@ function formatUptime(seconds) {
 .mem-bar.accent { background: var(--accent); }
 .mem-bar.cyan   { background: var(--cyan); }
 .mem-bar.red    { background: var(--red); }
-.mem-val  { font-size: 0.75rem; color: var(--text-dim); text-align: right; }
+.mem-val  { font-size: 0.75rem; color: var(--text-dim); text-align: right; font-family: var(--font-mono); }
 
 .sys-footer { grid-column: 1/-1; font-size: 0.72rem; color: var(--text-muted); text-align: right; }
 

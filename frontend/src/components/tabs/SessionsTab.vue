@@ -117,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useQueueStore }    from '@/stores/queue'
 
@@ -133,6 +133,20 @@ onMounted(() => {
   sessions.fetchSessions()
   queue.fetchStats()
 })
+
+// Cierra el modal QR automáticamente cuando la sesión queda autenticada.
+// watch() observa cambios en sessions.sessions (deep: true = detecta cambios internos del objeto).
+watch(
+  () => sessions.sessions,
+  (current) => {
+    if (!qrModal.value.show) return
+    const s = current[qrModal.value.sessionId]
+    if (s?.isReady) {
+      qrModal.value.show = false
+    }
+  },
+  { deep: true }
+)
 
 function badgeClass(status) {
   return {
@@ -194,7 +208,7 @@ async function showQR(id) {
 
 .stats-row { display: flex; gap: 0.75rem; margin-bottom: 1.25rem; }
 .stat-chip { display: flex; align-items: center; gap: 0.5rem; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.4rem 0.9rem; }
-.stat-val  { font-size: 1.1rem; font-weight: 700; }
+.stat-val  { font-size: 1.1rem; font-weight: 600; font-family: var(--font-mono); }
 .stat-val.green { color: var(--green); }
 .stat-lbl  { font-size: 0.75rem; color: var(--text-dim); }
 
@@ -215,7 +229,7 @@ async function showQR(id) {
   padding: 0.85rem 0.5rem;
   border-right: 1px solid var(--border);
 }
-.q-num { font-size: 1.6rem; font-weight: 700; }
+.q-num { font-size: 1.6rem; font-weight: 600; font-family: var(--font-mono); letter-spacing: -0.03em; }
 .q-lbl { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.15rem; }
 .q-box.waiting   .q-num { color: var(--yellow); }
 .q-box.active    .q-num { color: var(--accent);  }
@@ -232,9 +246,11 @@ async function showQR(id) {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 1.1rem 1.25rem;
   display: flex; flex-direction: column; gap: 0.75rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
+.session-card:hover { box-shadow: 0 0 0 1px var(--border-hi), 0 4px 20px rgba(26,133,251,0.08); }
 .session-card.ready { border-color: rgba(52,211,153,0.3); }
+.session-card.ready:hover { box-shadow: 0 0 0 1px rgba(52,211,153,0.4), 0 4px 20px rgba(52,211,153,0.08); }
 .session-card.error { border-color: rgba(248,113,113,0.3); }
 
 .s-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
@@ -246,7 +262,7 @@ async function showQR(id) {
 .badge.failed,
 .badge.logged-out  { background: var(--red-muted);    color: var(--red);    }
 
-.s-phone { font-size: 0.78rem; color: var(--text-dim); }
+.s-phone { font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono); letter-spacing: 0.02em; }
 
 .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
 .qr-img  { width: 140px; height: 140px; border-radius: var(--radius-sm); background: #fff; padding: 4px; }

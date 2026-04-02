@@ -182,8 +182,8 @@ function truncate(str, len) {
 .audit-table tr.completed:hover td { background: rgba(52,211,153,0.03); }
 .audit-table tr.failed:hover   td { background: rgba(248,113,113,0.03); }
 
-.td-mono  { font-family: monospace; font-size: 0.76rem; color: var(--cyan); }
-.td-time  { white-space: nowrap; color: var(--text-dim); font-size: 0.76rem; }
+.td-mono  { font-family: var(--font-mono); font-size: 0.74rem; color: var(--cyan); }
+.td-time  { white-space: nowrap; color: var(--text-dim); font-size: 0.74rem; font-family: var(--font-mono); }
 .td-dim   { color: var(--text-dim); font-size: 0.76rem; }
 .td-text  { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
 .small    { font-size: 0.72rem; }

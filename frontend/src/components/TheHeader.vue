@@ -134,8 +134,8 @@ onUnmounted(() => {
   box-shadow: 0 0 18px rgba(26,133,251,0.40);
 }
 
-.logo-text { font-size: 0.85rem; font-weight: 700; color: var(--text); letter-spacing: 0.04em; }
-.logo-sub  { font-size: 0.65rem; color: var(--text-dim); }
+.logo-text { font-size: 0.88rem; font-weight: 700; color: var(--text); letter-spacing: 0.08em; font-family: var(--font-ui); }
+.logo-sub  { font-size: 0.63rem; color: var(--text-dim); font-family: var(--font-mono); letter-spacing: 0.04em; }
 
 .header-sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.25rem; flex-shrink: 0; }
 
@@ -169,7 +169,7 @@ onUnmounted(() => {
   &.green { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
   &.red   { background: var(--red); }
 }
-.ws-text { font-size: 0.75rem; color: var(--text-dim); }
+.ws-text { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); }
 
 .header-user { font-size: 0.78rem; color: var(--text-dim); }
 
