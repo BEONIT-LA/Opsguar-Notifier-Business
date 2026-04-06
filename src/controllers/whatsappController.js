@@ -1,5 +1,6 @@
 const sessionManager = require('../services/sessionManager');
 const { enqueueMessage, getQueueStats, messageQueue } = require('../services/queueService');
+const poolService = require('../services/poolService');
 
 // ─── SESSIONS ─────────────────────────────────────────────────────────────────
 
@@ -32,8 +33,11 @@ async function createSession(req, res) {
 
 async function deleteSession(req, res) {
   try {
-    await sessionManager.removeSession(req.params.id);
-    return res.json({ success: true, message: `Sesión '${req.params.id}' eliminada` });
+    const id = req.params.id;
+    await sessionManager.removeSession(id);
+    // Fix 3: limpia la sesión de todos los pools automáticamente
+    await poolService.removeSessionFromAllPools(id).catch(() => {});
+    return res.json({ success: true, message: `Sesión '${id}' eliminada y removida de todos los pools` });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -76,10 +80,12 @@ async function sendMessage(req, res) {
     }
 
     const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'desconocida';
+    // El worker consulta el pool en tiempo real al procesar — no lo guardamos en el job
     const jobId = await enqueueMessage({ groupId, text, imagePath, documentPath, _ip: ip });
+
     return res.status(202).json({
       success: true,
-      message: 'Mensaje encolado. Un worker lo enviará usando round-robin.',
+      message: 'Mensaje encolado. El worker usará el pool activo al momento de procesar.',
       data: { jobId },
     });
   } catch (error) {
@@ -89,7 +95,7 @@ async function sendMessage(req, res) {
 
 async function queueStats(req, res) {
   try {
-    const stats = await getQueueStats();
+    const stats = await getQueueStats(sessionManager);
     return res.json({ success: true, data: stats });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -200,19 +206,98 @@ function getStatus(req, res) {
   });
 }
 
-const { readEntries, listDates } = require('../services/auditService');
+const { readEntries, listDates, getStats } = require('../services/auditService');
 
 async function auditLogs(req, res) {
   try {
-    const dates = listDates();
-    const date  = req.query.date || dates[0] || new Date().toISOString().split('T')[0];
-    let entries = readEntries(date);
+    // Paginación real desde la DB
+    const limit  = Math.min(parseInt(req.query.limit  || '100', 10), 500);
+    const offset = parseInt(req.query.offset || '0', 10);
 
-    // Filtros opcionales
-    if (req.query.session) entries = entries.filter(e => e.sessionId === req.query.session);
-    if (req.query.status)  entries = entries.filter(e => e.status    === req.query.status);
+    const [dates, result] = await Promise.all([
+      listDates(),
+      readEntries({
+        date:    req.query.date    || null,
+        session: req.query.session || null,
+        status:  req.query.status  || null,
+        limit,
+        offset,
+      }),
+    ]);
 
-    return res.json({ success: true, data: { date, dates, entries } });
+    return res.json({
+      success: true,
+      data: {
+        dates,
+        entries: result.rows,
+        total:   result.total,
+        limit,
+        offset,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function auditStats(req, res) {
+  try {
+    const stats = await getStats();
+    return res.json({ success: true, data: stats });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ─── POOLS ────────────────────────────────────────────────────────────────────
+
+async function listPools(req, res) {
+  try {
+    const pools = await poolService.listPools();
+    return res.json({ success: true, data: pools });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function createPool(req, res) {
+  try {
+    const { name, groupId, sessionIds } = req.body;
+    if (!name || !groupId) {
+      return res.status(400).json({ success: false, message: "'name' y 'groupId' son obligatorios" });
+    }
+    const pool = await poolService.createPool({ name, groupId, sessionIds: sessionIds || [] });
+    return res.status(201).json({ success: true, data: pool });
+  } catch (error) {
+    // Duplicate group_id → clave única violada
+    if (error.code === '23505') {
+      return res.status(409).json({ success: false, message: 'Ya existe un pool para ese groupId' });
+    }
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function updatePool(req, res) {
+  try {
+    const { name, groupId, sessionIds } = req.body;
+    if (!name || !groupId) {
+      return res.status(400).json({ success: false, message: "'name' y 'groupId' son obligatorios" });
+    }
+    const pool = await poolService.updatePool(req.params.id, { name, groupId, sessionIds: sessionIds || [] });
+    if (!pool) return res.status(404).json({ success: false, message: 'Pool no encontrado' });
+    return res.json({ success: true, data: pool });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ success: false, message: 'Ya existe un pool para ese groupId' });
+    }
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function deletePool(req, res) {
+  try {
+    await poolService.deletePool(req.params.id);
+    return res.json({ success: true, message: 'Pool eliminado' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -230,4 +315,9 @@ module.exports = {
   getStatus,
   health,
   auditLogs,
+  auditStats,
+  listPools,
+  createPool,
+  updatePool,
+  deletePool,
 };

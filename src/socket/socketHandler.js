@@ -42,6 +42,11 @@ function initSocketHandler(io) {
   sessionManager.on('job:warn', (payload) => {
     io.emit('job:warn', payload);
   });
+
+  // Notifica al frontend que actualice las estadísticas de la cola
+  sessionManager.on('queue:update', () => {
+    io.emit('queue:update', {});
+  });
 }
 
 module.exports = { initSocketHandler };

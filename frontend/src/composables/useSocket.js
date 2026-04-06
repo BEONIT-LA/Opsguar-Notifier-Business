@@ -57,8 +57,8 @@ export function useSocket() {
       useQueueStore().fetchStats()
     })
 
-    socket.on('queue:update', (data) => {
-      if (data) useQueueStore().updateFromSocket(data)
+    socket.on('queue:update', () => {
+      useQueueStore().fetchStats()
     })
   }
 

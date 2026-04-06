@@ -3,47 +3,45 @@ import { ref, computed } from 'vue'
 import api from '@/api/axios'
 import router from '@/router'
 
-/**
- * Store de autenticación.
- * defineStore(id, setup) → crea un store con la Composition API de Pinia.
- * Es como un "estado global" accesible desde cualquier componente.
- */
 export const useAuthStore = defineStore('auth', () => {
 
-  // ── Estado ───────────────────────────────────────────────────
-  // ref() → variable reactiva. Cuando cambia, los componentes que la
-  // usan se re-renderizan automáticamente (como useState en React).
-  const token = ref(localStorage.getItem('token') || null)
-  const user  = ref(localStorage.getItem('user')  || null)
+  // ── Estado ────────────────────────────────────────────────────
+  const token    = ref(localStorage.getItem('token')    || null)
+  const user     = ref(localStorage.getItem('user')     || null)
+  const fullName = ref(localStorage.getItem('fullName') || null)
+  const email    = ref(localStorage.getItem('email')    || null)
+  const role     = ref(localStorage.getItem('role')     || null)
 
   // ── Computed ──────────────────────────────────────────────────
-  // computed() → valor derivado que se recalcula cuando cambia su dependencia.
-  // isAuthenticated = true si hay token, false si no.
   const isAuthenticated = computed(() => !!token.value)
 
   // ── Acciones ──────────────────────────────────────────────────
   async function login(username, password) {
-    // Llama al backend: POST /api/auth/login
     const { data } = await api.post('/auth/login', { user: username, password })
 
-    // Guarda en el estado reactivo Y en localStorage (persiste al recargar)
-    token.value = data.token
-    user.value  = username
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user',  username)
+    token.value    = data.token
+    user.value     = data.user
+    fullName.value = data.fullName || null
+    email.value    = data.email    || null
+    role.value     = data.role     || 'operator'
 
-    // Navega al dashboard
+    localStorage.setItem('token',    data.token)
+    localStorage.setItem('user',     data.user)
+    localStorage.setItem('fullName', data.fullName || '')
+    localStorage.setItem('email',    data.email    || '')
+    localStorage.setItem('role',     data.role     || 'operator')
+
     router.push('/')
   }
 
   function logout() {
-    token.value = null
-    user.value  = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    token.value = null; user.value = null
+    fullName.value = null; email.value = null; role.value = null
+    localStorage.removeItem('token');    localStorage.removeItem('user')
+    localStorage.removeItem('fullName'); localStorage.removeItem('email')
+    localStorage.removeItem('role')
     router.push('/login')
   }
 
-  // Los valores y funciones que expones al componente que use este store
-  return { token, user, isAuthenticated, login, logout }
+  return { token, user, fullName, email, role, isAuthenticated, login, logout }
 })

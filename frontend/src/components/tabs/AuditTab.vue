@@ -37,40 +37,43 @@
           <tr>
             <th>Hora</th>
             <th>Estado</th>
+            <th>Job ID</th>
             <th>Sesión</th>
             <th>Grupo</th>
             <th>Tipo</th>
             <th>Texto</th>
             <th>IP</th>
             <th>Duración</th>
+            <th>Intento</th>
+            <th>Error</th>
           </tr>
         </thead>
         <tbody>
-          <!--
-            entries ya viene del más reciente primero gracias al slice().reverse()
-          -->
           <tr v-for="(e, i) in pagedEntries" :key="i" :class="e.status">
-            <td class="td-time">{{ formatTime(e.timestamp) }}</td>
+            <td class="td-time">{{ formatTime(e.created_at) }}</td>
             <td>
               <span class="badge" :class="e.status">{{ e.status }}</span>
             </td>
-            <td class="td-mono">{{ e.sessionId || '–' }}</td>
-            <td class="td-mono small">{{ e.groupId || '–' }}</td>
+            <td class="td-mono small">{{ e.job_id || '–' }}</td>
+            <td class="td-mono">{{ e.session_id || '–' }}</td>
+            <td class="td-mono small">{{ e.group_id || '–' }}</td>
             <td>
               <span class="type-badge" :class="e.type">{{ e.type }}</span>
             </td>
             <td class="td-text" :title="e.text || ''">{{ truncate(e.text, 35) }}</td>
             <td class="td-dim">{{ e.ip || '–' }}</td>
             <td class="td-dim">{{ e.duration ? e.duration + 'ms' : '–' }}</td>
+            <td class="td-dim">{{ e.attempt || '–' }}</td>
+            <td class="td-error" :title="e.error || ''">{{ truncate(e.error, 30) }}</td>
           </tr>
         </tbody>
       </table>
 
       <!-- Paginación -->
       <div class="pagination">
-        <button class="btn btn-ghost btn-sm" :disabled="page === 1" @click="page--">‹ Anterior</button>
-        <span class="page-info">Página {{ page }} / {{ totalPages }}</span>
-        <button class="btn btn-ghost btn-sm" :disabled="page >= totalPages" @click="page++">Siguiente ›</button>
+        <button class="btn btn-ghost btn-sm" :disabled="page === 1 || loading" @click="loadPage(page - 1)">‹ Anterior</button>
+        <span class="page-info">Página {{ page }} / {{ totalPages }} · <b>{{ totalRecords }}</b> registros total</span>
+        <button class="btn btn-ghost btn-sm" :disabled="page >= totalPages || loading" @click="loadPage(page + 1)">Siguiente ›</button>
       </div>
     </div>
 
@@ -91,28 +94,25 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api/axios'
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 100
 
-const dates    = ref([])
-const entries  = ref([])
-const loading  = ref(false)
-const searched = ref(false)
-const page     = ref(1)
+const dates        = ref([])
+const entries      = ref([])
+const totalRecords = ref(0)
+const loading      = ref(false)
+const searched     = ref(false)
+const page         = ref(1)
 
-const filters = ref({
-  date:    '',
-  session: '',
-  status:  '',
-})
+const filters = ref({ date: '', session: '', status: '' })
 
 onMounted(async () => {
-  // Carga las fechas disponibles al entrar al tab
   try {
     const { data } = await api.get('/audit')
     dates.value = data.data.dates
     if (dates.value.length) {
       filters.value.date = dates.value[0]
-      entries.value = data.data.entries.slice().reverse()
+      entries.value  = data.data.entries
+      totalRecords.value = data.data.total
       searched.value = true
     }
   } catch {}
@@ -122,29 +122,36 @@ async function fetchAudit() {
   loading.value  = true
   searched.value = false
   page.value     = 1
+  await loadPage(1)
+  searched.value = true
+  loading.value  = false
+}
+
+async function loadPage(p) {
+  loading.value = true
   try {
     const params = new URLSearchParams()
     if (filters.value.date)    params.append('date',    filters.value.date)
     if (filters.value.session) params.append('session', filters.value.session)
     if (filters.value.status)  params.append('status',  filters.value.status)
+    params.append('limit',  PAGE_SIZE)
+    params.append('offset', (p - 1) * PAGE_SIZE)
 
     const { data } = await api.get(`/audit?${params}`)
-    dates.value   = data.data.dates
-    entries.value = data.data.entries.slice().reverse() // más reciente primero
-    searched.value = true
+    dates.value        = data.data.dates
+    entries.value      = data.data.entries   // ya viene ordenado DESC del backend
+    totalRecords.value = data.data.total
+    page.value         = p
   } finally {
     loading.value = false
   }
 }
 
-// Paginación client-side
-const totalPages   = computed(() => Math.max(1, Math.ceil(entries.value.length / PAGE_SIZE)))
-const pagedEntries = computed(() => {
-  const start = (page.value - 1) * PAGE_SIZE
-  return entries.value.slice(start, start + PAGE_SIZE)
-})
+// Paginación server-side
+const totalPages     = computed(() => Math.max(1, Math.ceil(totalRecords.value / PAGE_SIZE)))
+const pagedEntries   = computed(() => entries.value)   // el backend ya pagina
 
-// Contadores
+// Contadores basados en los registros de la página actual
 const completedCount = computed(() => entries.value.filter(e => e.status === 'completed').length)
 const failedCount    = computed(() => entries.value.filter(e => e.status === 'failed').length)
 
@@ -185,7 +192,8 @@ function truncate(str, len) {
 .td-mono  { font-family: var(--font-mono); font-size: 0.74rem; color: var(--cyan); }
 .td-time  { white-space: nowrap; color: var(--text-dim); font-size: 0.74rem; font-family: var(--font-mono); }
 .td-dim   { color: var(--text-dim); font-size: 0.76rem; }
-.td-text  { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.td-text  { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.td-error { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--red); font-size: 0.74rem; cursor: default; }
 .small    { font-size: 0.72rem; }
 
 .badge { font-size: 0.65rem; font-weight: 600; padding: 0.18rem 0.55rem; border-radius: 20px; text-transform: uppercase; white-space: nowrap; }

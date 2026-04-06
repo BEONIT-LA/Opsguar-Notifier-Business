@@ -27,6 +27,7 @@ import GroupsTab     from '@/components/tabs/GroupsTab.vue'
 import SystemTab     from '@/components/tabs/SystemTab.vue'
 import ApiTab        from '@/components/tabs/ApiTab.vue'
 import AuditTab      from '@/components/tabs/AuditTab.vue'
+import PoolsTab      from '@/components/tabs/PoolsTab.vue'
 import { useSocket } from '@/composables/useSocket'
 
 // Inicia la conexión Socket.io cuando se monta el dashboard
@@ -43,6 +44,7 @@ const tabComponents = {
   sessions: SessionsTab,
   send:     SendTab,
   groups:   GroupsTab,
+  pools:    PoolsTab,
   system:   SystemTab,
   api:      ApiTab,
   audit:    AuditTab,

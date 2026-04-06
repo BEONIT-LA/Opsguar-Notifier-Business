@@ -49,8 +49,8 @@
         <div class="q-lbl">En espera</div>
       </div>
       <div class="q-box active">
-        <div class="q-num">{{ queue.stats.active }}</div>
-        <div class="q-lbl">Procesando</div>
+        <div class="q-num">{{ sessions.totalReady() }}</div>
+        <div class="q-lbl">Sesiones listas</div>
       </div>
       <div class="q-box completed">
         <div class="q-num">{{ queue.stats.totalCompleted }}</div>
@@ -61,6 +61,64 @@
         <div class="q-lbl">Fallidos</div>
       </div>
       <button class="btn btn-ghost btn-sm q-refresh" @click="queue.fetchStats()" title="Actualizar">↺</button>
+    </div>
+
+    <!-- ── Panel de requisitos colapsable (siempre visible) ── -->
+    <div class="req-banner" :class="{ collapsed: !bannerOpen }">
+
+      <!-- Header — siempre visible, click para abrir/cerrar -->
+      <button class="req-header" @click="bannerOpen = !bannerOpen">
+        <div class="req-header-left">
+          <span class="req-header-icon">📋</span>
+          <span class="req-header-title">Requisitos importantes antes de enviar</span>
+          <span class="req-header-sub" v-if="!bannerOpen">— haz clic para ver</span>
+        </div>
+        <span class="req-chevron" :class="{ open: bannerOpen }">▾</span>
+      </button>
+
+      <!-- Contenido colapsable -->
+      <transition name="req-expand">
+        <div v-if="bannerOpen" class="req-body">
+          <div class="req-list">
+
+            <div class="req-item">
+              <span class="req-dot green"></span>
+              <span>
+                <b>Cada número debe estar en el grupo.</b>
+                Agrega el número escaneado como miembro del grupo de WhatsApp destino antes de enviar.
+                Si no está, el sistema tendrá inconvenientes en el envío y este se volverá lento.
+              </span>
+            </div>
+
+            <div class="req-item">
+              <span class="req-dot accent"></span>
+              <span>
+                <b>Configura siempre un Pool.</b>
+                En la pestaña 🎯 <b>Pools</b> asigna qué números notifican qué grupos.
+                Sin pool se usan todos los números — si alguno no está en el grupo pueden presentarse inconvenientes en el envío.
+              </span>
+            </div>
+
+            <div class="req-item">
+              <span class="req-dot yellow"></span>
+              <span>
+                <b>READY ≠ puede enviar a cualquier grupo.</b>
+                READY solo indica que el número está conectado a WhatsApp.
+                Para enviar a un grupo debe estar agregado como miembro de ese grupo en WhatsApp.
+              </span>
+            </div>
+
+            <div class="req-item">
+              <span class="req-dot red"></span>
+              <span>
+                <b>Flujo recomendado:</b>
+                Escanear QR → Agregar número al grupo en WhatsApp → Crear Pool en 🎯 Pools → Enviar.
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </transition>
     </div>
 
     <!-- Loading -->
@@ -124,6 +182,10 @@ import { useQueueStore }    from '@/stores/queue'
 const sessions    = useSessionsStore()
 const queue       = useQueueStore()
 const showCreate  = ref(false)
+
+// Banner colapsable — recuerda si estaba abierto o cerrado
+const bannerOpen = ref(localStorage.getItem('sessions_banner_open') !== '0')
+watch(bannerOpen, val => localStorage.setItem('sessions_banner_open', val ? '1' : '0'))
 const newSessionId = ref('')
 const creating    = ref(false)
 const error       = ref('')
@@ -286,6 +348,62 @@ async function showQR(id) {
 
 .field-input { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; color: var(--text); font-size: 0.85rem; font-family: inherit; outline: none; }
 .field-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-muted); }
+
+/* ── Banner colapsable de requisitos ── */
+.req-banner {
+  background: var(--bg2);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.req-banner:hover { border-color: var(--accent); }
+
+/* Header — siempre visible */
+.req-header {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 0.75rem 1.1rem;
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; text-align: left;
+  transition: background 0.15s;
+}
+.req-header:hover { background: var(--bg3); }
+.req-header-left  { display: flex; align-items: center; gap: 0.55rem; flex: 1; min-width: 0; }
+.req-header-icon  { font-size: 0.95rem; flex-shrink: 0; }
+.req-header-title { font-size: 0.83rem; font-weight: 600; color: var(--text); }
+.req-header-sub   { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+.req-chevron {
+  font-size: 0.75rem; color: var(--text-muted);
+  transition: transform 0.25s; flex-shrink: 0; margin-left: 0.5rem;
+}
+.req-chevron.open { transform: rotate(180deg); }
+
+/* Cuerpo expandible */
+.req-body {
+  padding: 0 1.1rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.req-list { display: flex; flex-direction: column; gap: 0.6rem; padding-top: 0.85rem; }
+.req-item {
+  display: flex; align-items: flex-start; gap: 0.65rem;
+  font-size: 0.78rem; color: var(--text-dim); line-height: 1.6;
+}
+.req-item b { color: var(--text); font-weight: 600; }
+.req-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; margin-top: 0.4rem;
+}
+.req-dot.green  { background: var(--green);  box-shadow: 0 0 6px var(--green); }
+.req-dot.accent { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.req-dot.yellow { background: var(--yellow); }
+.req-dot.red    { background: var(--red);    }
+
+/* Animación expand/collapse */
+.req-expand-enter-active { transition: opacity 0.2s, transform 0.2s; }
+.req-expand-leave-active { transition: opacity 0.15s, transform 0.15s; }
+.req-expand-enter-from, .req-expand-leave-to { opacity: 0; transform: translateY(-6px); }
 
 /* Modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 200; }

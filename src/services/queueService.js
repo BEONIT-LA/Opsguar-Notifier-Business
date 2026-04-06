@@ -25,7 +25,7 @@ async function enqueueMessage(data) {
   return job.id;
 }
 
-async function getQueueStats() {
+async function getQueueStats(sessionManager) {
   const [waiting, active, completed, failed, delayed, totalCompleted, totalFailed] = await Promise.all([
     messageQueue.getWaitingCount(),
     messageQueue.getActiveCount(),
@@ -35,9 +35,16 @@ async function getQueueStats() {
     connection.get('wa:stats:completed'),
     connection.get('wa:stats:failed'),
   ]);
+
+  // Sesiones listas en este momento (no cuántos jobs activos hay en BullMQ)
+  const ready = sessionManager
+    ? [...sessionManager.sessions.values()].filter(s => s.isReady && s.status === 'ready').length
+    : 0;
+
   return {
     waiting,
     active,
+    ready,      // sesiones disponibles — reemplaza "procesando" en la UI
     completed,
     failed,
     delayed,

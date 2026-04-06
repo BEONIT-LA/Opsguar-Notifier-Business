@@ -23,4 +23,10 @@ router.get('/status', ctrl.getStatus);
 router.get('/groups', ctrl.groups);            // ?sessionId=xxx (opcional)
 router.get('/group/:groupId', ctrl.groupById); // ?sessionId=xxx (opcional)
 
+// ─── Pools (asignación de sesiones a grupos) ──────────────────
+router.get('/pools',        ctrl.listPools);
+router.post('/pools',       ctrl.createPool);
+router.put('/pools/:id',    ctrl.updatePool);
+router.delete('/pools/:id', ctrl.deletePool);
+
 module.exports = router;

@@ -68,6 +68,7 @@ class SessionManager extends EventEmitter {
       status: 'connecting',
       retryCount: 0,
       phone: null,
+      isBusy: false,   // true mientras el worker está usando esta sesión
     });
 
     await this._connect(id);
@@ -235,12 +236,12 @@ class SessionManager extends EventEmitter {
   }
 
   /**
-   * Round-robin: solo elige entre sesiones con status === 'ready'.
-   * Si todas están caídas devuelve null.
+   * Round-robin global: elige entre TODAS las sesiones listas y no ocupadas.
+   * Se usa cuando el grupo no tiene pool asignado.
    */
   getNextAvailableSession() {
     const ready = [...this.sessions.entries()]
-      .filter(([, s]) => s.isReady && s.status === 'ready')
+      .filter(([, s]) => s.isReady && s.status === 'ready' && !s.isBusy)
       .map(([id]) => id);
 
     if (ready.length === 0) return null;
@@ -250,6 +251,42 @@ class SessionManager extends EventEmitter {
 
     const sessionId = ready[idx];
     return { sessionId, ...this.sessions.get(sessionId) };
+  }
+
+  /**
+   * Round-robin dentro de un pool: solo elige entre las sesiones
+   * del pool que estén listas Y no ocupadas en este momento.
+   * Si ninguna está libre, devuelve null → el job se reintentará.
+   */
+  getNextAvailableSessionFromPool(sessionIds = []) {
+    const ready = [...this.sessions.entries()]
+      .filter(([id, s]) => sessionIds.includes(id) && s.isReady && s.status === 'ready' && !s.isBusy)
+      .map(([id]) => id);
+
+    if (ready.length === 0) return null;
+
+    const idx = this._rrIndex % ready.length;
+    this._rrIndex = (this._rrIndex + 1 >= Number.MAX_SAFE_INTEGER) ? 0 : this._rrIndex + 1;
+
+    const sessionId = ready[idx];
+    return { sessionId, ...this.sessions.get(sessionId) };
+  }
+
+  /**
+   * Marca una sesión como ocupada (en uso por el worker).
+   * Evita que otro job concurrente la tome al mismo tiempo.
+   */
+  acquireSession(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (session) session.isBusy = true;
+  }
+
+  /**
+   * Libera una sesión cuando el worker termina el job (éxito o error).
+   */
+  releaseSession(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (session) session.isBusy = false;
   }
 }
 

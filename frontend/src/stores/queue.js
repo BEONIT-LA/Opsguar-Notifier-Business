@@ -4,7 +4,7 @@ import api from '@/api/axios'
 
 export const useQueueStore = defineStore('queue', () => {
 
-  const stats   = ref({ waiting: 0, active: 0, completed: 0, failed: 0, totalCompleted: 0, totalFailed: 0 })
+  const stats   = ref({ waiting: 0, active: 0, ready: 0, completed: 0, failed: 0, totalCompleted: 0, totalFailed: 0 })
   const loading = ref(false)
 
   async function fetchStats() {

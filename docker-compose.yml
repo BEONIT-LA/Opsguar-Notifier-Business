@@ -1,0 +1,68 @@
+version: '3.8'
+
+# ─────────────────────────────────────────────────────────────────
+# OpsGuard · Infraestructura de servicios
+#
+# Servicios:
+#   - postgres  → base de datos principal (usuarios + auditoría)
+#   - redis     → cola BullMQ + caché de sesiones
+#
+# Uso:
+#   docker compose up -d          → inicia ambos en background
+#   docker compose down           → detiene (datos persisten)
+#   docker compose down -v        → detiene Y borra datos
+#   docker compose logs postgres  → ver logs de postgres
+# ─────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: opsguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-opsguard}
+      POSTGRES_USER:     ${POSTGRES_USER:-opsguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:-opsguard2024}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Datos persistentes — sobreviven a docker compose down
+      - postgres_data:/var/lib/postgresql/data
+      # Migraciones — se ejecutan automáticamente al crear el contenedor (orden alfabético)
+      # 001 ya incluye todos los campos de users (first_name, last_name, email)
+      # 004 usa IF NOT EXISTS por si se corre sobre una DB existente sin esos campos
+      - ./database/001_users.sql:/docker-entrypoint-initdb.d/001_users.sql:ro
+      - ./database/002_audit_logs.sql:/docker-entrypoint-initdb.d/002_audit_logs.sql:ro
+      - ./database/004_alter_users_add_profile.sql:/docker-entrypoint-initdb.d/004_alter_users.sql:ro
+      - ./database/005_group_pools.sql:/docker-entrypoint-initdb.d/005_group_pools.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opsguard} -d ${POSTGRES_DB:-opsguard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ──────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: opsguard-redis
+    restart: unless-stopped
+    # appendonly yes → persiste datos en disco (no se pierden al reiniciar)
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ── Volúmenes persistentes ─────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

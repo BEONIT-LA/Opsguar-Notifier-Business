@@ -4,8 +4,7 @@
     <div class="logo">
       <div class="logo-icon">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z"
-            fill="url(#sh2)" />
+          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z" fill="url(#sh2)" />
           <circle cx="12" cy="12" r="3" fill="white" opacity="0.9"/>
           <defs>
             <linearGradient id="sh2" x1="0" y1="0" x2="1" y2="1">
@@ -23,13 +22,7 @@
 
     <div class="header-sep"></div>
 
-    <!-- Navegación de tabs -->
-    <!--
-      v-for → itera sobre un array (como .map() en JS).
-      @click → escucha el evento click (shorthand de v-on:click).
-      :class → clases dinámicas: añade 'active' si el tab es el activo.
-      $emit → emite un evento al componente padre (DashboardView).
-    -->
+    <!-- Tabs de navegación -->
     <nav class="header-nav">
       <button
         v-for="tab in tabs"
@@ -42,7 +35,7 @@
       </button>
     </nav>
 
-    <!-- Lado derecho: estado WS + usuario + logout -->
+    <!-- Lado derecho -->
     <div class="header-right">
       <!-- Indicador Socket.io -->
       <div class="ws-pill">
@@ -52,57 +45,127 @@
 
       <div class="header-sep"></div>
 
-      <!-- Usuario logueado -->
-      <span class="header-user">👤 {{ auth.user }}</span>
+      <!-- ── Botón de usuario con dropdown ── -->
+      <div class="user-wrap" ref="userWrapRef">
+        <button class="user-btn" @click="menuOpen = !menuOpen">
+          <div class="user-avatar">{{ avatarInitials }}</div>
+          <div class="user-info">
+            <span class="user-name">{{ auth.fullName || auth.user }}</span>
+            <span class="user-role">{{ auth.role }}</span>
+          </div>
+          <span class="user-chevron" :class="{ open: menuOpen }">▾</span>
+        </button>
 
-      <!-- Botón logout -->
-      <button class="logout-btn" @click="auth.logout()" title="Cerrar sesión">⏏</button>
+        <!-- Dropdown -->
+        <transition name="dropdown">
+          <div v-if="menuOpen" class="user-dropdown">
+
+            <!-- Info del usuario -->
+            <div class="dropdown-header">
+              <div class="dh-avatar">{{ avatarInitials }}</div>
+              <div class="dh-info">
+                <div class="dh-name">{{ auth.fullName || auth.user }}</div>
+                <div class="dh-email">{{ auth.email || '–' }}</div>
+                <span class="dh-role-badge">{{ auth.role }}</span>
+              </div>
+            </div>
+
+            <div class="dropdown-divider"></div>
+
+            <!-- Acciones -->
+            <button class="dropdown-item danger" @click.stop="confirmLogout">
+              <span class="di-icon">⏏</span>
+              Cerrar sesión
+            </button>
+          </div>
+        </transition>
+      </div>
     </div>
   </header>
+
+  <!-- ── Modal de confirmación de logout ── -->
+  <teleport to="body">
+    <transition name="fade">
+      <div v-if="showConfirm" class="confirm-overlay" @click.self="showConfirm = false">
+        <div class="confirm-card">
+          <div class="confirm-icon">⏏</div>
+          <div class="confirm-title">¿Cerrar sesión?</div>
+          <div class="confirm-desc">
+            Saldrás como <b>{{ auth.fullName || auth.user }}</b>.<br>
+            Tendrás que volver a iniciar sesión para acceder.
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-ghost" @click.stop="showConfirm = false">Cancelar</button>
+            <button class="btn btn-danger" @click.stop="doLogout">Sí, cerrar sesión</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </teleport>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSocket }    from '@/composables/useSocket'
 
-// defineProps → declara las props que recibe este componente del padre.
-// Equivalente a los "atributos" de un componente React.
 const props = defineProps({
   activeTab: { type: String, required: true },
 })
-
-// defineEmits → declara los eventos que este componente puede emitir al padre.
 defineEmits(['tab-change'])
 
-const auth = useAuthStore()
+const auth        = useAuthStore()
+const menuOpen    = ref(false)
+const showConfirm = ref(false)
+const userWrapRef = ref(null)
+const wsConnected = ref(false)
+const { socket }  = useSocket()
 
-// Tabs de navegación
 const tabs = [
   { id: 'sessions', icon: '📱', label: 'Sesiones'  },
   { id: 'send',     icon: '✉️',  label: 'Enviar'    },
   { id: 'groups',   icon: '👥',  label: 'Grupos'    },
+  { id: 'pools',    icon: '🎯',  label: 'Pools'     },
   { id: 'system',   icon: '⚙️',  label: 'Sistema'   },
   { id: 'api',      icon: '📖',  label: 'API'       },
   { id: 'audit',    icon: '📋',  label: 'Auditoría' },
 ]
 
-// Estado de conexión Socket.io
-const wsConnected = ref(false)
-const { socket } = useSocket()
+// Iniciales del avatar — toma la primera letra del nombre y apellido
+const avatarInitials = computed(() => {
+  const name = auth.fullName || auth.user || ''
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+})
 
-// onMounted → se ejecuta cuando el componente se inserta en el DOM.
-// Equivalente a componentDidMount en React.
+// Abre el modal de confirmación y cierra el dropdown
+function confirmLogout() {
+  menuOpen.value    = false
+  showConfirm.value = true
+}
+
+function doLogout() {
+  showConfirm.value = false
+  auth.logout()
+}
+
+// Cierra el dropdown al hacer click fuera de él
+function handleClickOutside(e) {
+  if (userWrapRef.value && !userWrapRef.value.contains(e.target)) {
+    menuOpen.value = false
+  }
+}
+
 onMounted(() => {
   wsConnected.value = socket.connected
   socket.on('connect',    () => { wsConnected.value = true  })
   socket.on('disconnect', () => { wsConnected.value = false })
+  document.addEventListener('click', handleClickOutside)
 })
 
-// onUnmounted → limpieza cuando el componente se destruye.
 onUnmounted(() => {
   socket.off('connect')
   socket.off('disconnect')
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -115,53 +178,35 @@ onUnmounted(() => {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 1.5rem;
-  gap: 0.75rem;
+  display: flex; align-items: center;
+  padding: 0 1.5rem; gap: 0.75rem;
   z-index: 100;
 }
 
 .logo { display: flex; align-items: center; gap: 0.6rem; }
-
 .logo-icon {
   width: 32px; height: 32px;
-  background: var(--accent-muted);
-  border: 1px solid var(--border-hi);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 0 18px rgba(26,133,251,0.40);
+  background: var(--accent-muted); border: 1px solid var(--border-hi);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; box-shadow: 0 0 18px rgba(26,133,251,0.40);
 }
-
-.logo-text { font-size: 0.88rem; font-weight: 700; color: var(--text); letter-spacing: 0.08em; font-family: var(--font-ui); }
+.logo-text { font-size: 0.88rem; font-weight: 700; color: var(--text); letter-spacing: 0.08em; }
 .logo-sub  { font-size: 0.63rem; color: var(--text-dim); font-family: var(--font-mono); letter-spacing: 0.04em; }
 
 .header-sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.25rem; flex-shrink: 0; }
 
 .header-nav { display: flex; gap: 2px; }
-
 .nav-btn {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-dim);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
-  font-family: inherit;
+  padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 500;
+  color: var(--text-dim); cursor: pointer; border-radius: var(--radius-sm);
+  border: none; background: none; font-family: inherit;
   display: flex; align-items: center; gap: 0.35rem;
-  transition: all 0.15s;
-  white-space: nowrap;
+  transition: all 0.15s; white-space: nowrap;
 }
 .nav-btn:hover  { color: var(--text); background: var(--bg3); }
 .nav-btn.active { color: var(--accent); background: var(--accent-muted); }
 
-.header-right {
-  margin-left: auto;
-  display: flex; align-items: center; gap: 0.75rem;
-}
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
 
 .ws-pill { display: flex; align-items: center; gap: 0.4rem; }
 .ws-dot {
@@ -171,22 +216,108 @@ onUnmounted(() => {
 }
 .ws-text { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); }
 
-.header-user { font-size: 0.78rem; color: var(--text-dim); }
+/* ── Botón de usuario ── */
+.user-wrap { position: relative; }
 
-.logout-btn {
-  background: none; border: none; cursor: pointer;
-  color: var(--text-dim); font-size: 1rem; padding: 0.2rem 0.4rem;
-  border-radius: var(--radius-sm); transition: all 0.15s;
+.user-btn {
+  display: flex; align-items: center; gap: 0.55rem;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.3rem 0.65rem 0.3rem 0.4rem;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
 }
-.logout-btn:hover { color: var(--red); background: var(--red-muted); }
+.user-btn:hover { border-color: var(--border-hi); background: var(--bg2); }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
+.user-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; color: #fff;
+  flex-shrink: 0; letter-spacing: 0.02em;
 }
+.user-info { display: flex; flex-direction: column; align-items: flex-start; }
+.user-name { font-size: 0.78rem; font-weight: 600; color: var(--text); line-height: 1.2; }
+.user-role { font-size: 0.62rem; color: var(--text-dim); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; }
+.user-chevron { font-size: 0.65rem; color: var(--text-muted); transition: transform 0.2s; margin-left: 0.1rem; }
+.user-chevron.open { transform: rotate(180deg); }
+
+/* ── Dropdown ── */
+.user-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 240px;
+  background: var(--bg2); border: 1px solid var(--border-hi);
+  border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  overflow: hidden; z-index: 200;
+}
+
+.dropdown-header {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 1rem 1rem 0.85rem;
+  background: var(--bg3);
+}
+.dh-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; font-weight: 700; color: #fff;
+}
+.dh-name  { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.dh-email { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); margin: 0.1rem 0 0.3rem; }
+.dh-role-badge {
+  font-size: 0.62rem; font-weight: 600; padding: 0.1rem 0.5rem;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+  background: var(--accent-muted); color: var(--accent);
+}
+
+.dropdown-divider { height: 1px; background: var(--border); }
+
+.dropdown-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  width: 100%; padding: 0.7rem 1rem;
+  background: none; border: none; font-family: inherit;
+  font-size: 0.82rem; color: var(--text-dim);
+  cursor: pointer; transition: all 0.15s; text-align: left;
+}
+.dropdown-item:hover { background: var(--bg3); color: var(--text); }
+.dropdown-item.danger:hover { background: var(--red-muted); color: var(--red); }
+.di-icon { font-size: 0.9rem; }
+
+/* ── Modal de confirmación ── */
+.confirm-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.65);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.confirm-card {
+  background: var(--bg2); border: 1px solid var(--border-hi);
+  border-radius: 16px; padding: 2rem 2rem 1.75rem;
+  width: 100%; max-width: 360px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+.confirm-icon  { font-size: 2rem; margin-bottom: 0.75rem; }
+.confirm-title { font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
+.confirm-desc  { font-size: 0.83rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 1.5rem; }
+.confirm-desc b { color: var(--text); }
+.confirm-actions { display: flex; gap: 0.65rem; justify-content: center; }
+
+.btn { border: none; border-radius: var(--radius-sm); padding: 0.55rem 1.1rem; font-size: 0.83rem; font-weight: 500; font-family: inherit; cursor: pointer; transition: all 0.15s; }
+.btn-ghost  { background: var(--bg3); color: var(--text-dim); }
+.btn-ghost:hover { color: var(--text); }
+.btn-danger { background: var(--red-muted); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+.btn-danger:hover { background: rgba(248,113,113,0.2); }
+
+/* Animaciones */
+.dropdown-enter-active, .dropdown-leave-active { transition: opacity 0.15s, transform 0.15s; }
+.dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-6px); }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 @media (max-width: 768px) {
   .nav-label { display: none; }
-  .header-user { display: none; }
+  .user-info  { display: none; }
 }
 </style>

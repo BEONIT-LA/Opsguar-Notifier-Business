@@ -19,6 +19,26 @@
             <label class="field-label">ID del Grupo <span class="req">*</span></label>
             <input v-model="form.groupId" class="field-input" placeholder="120363xxxxxxxx@g.us" required />
             <div class="field-hint">Obtén el ID en la pestaña Grupos</div>
+
+            <!-- Indicador de pool dinámico -->
+            <transition name="slide">
+              <div v-if="form.groupId.length > 10" class="pool-status" :class="activePool ? 'has-pool' : 'no-pool'">
+                <div v-if="activePool" class="ps-content">
+                  <span class="ps-icon">🎯</span>
+                  <div class="ps-info">
+                    <span class="ps-label">Pool activo: <b>{{ activePool.name }}</b></span>
+                    <span class="ps-sessions">{{ activePool.session_ids.join(', ') }}</span>
+                  </div>
+                </div>
+                <div v-else class="ps-content">
+                  <span class="ps-icon">⚠</span>
+                  <div class="ps-info">
+                    <span class="ps-label"><b>Sin pool configurado</b> — se usarán todos los números</span>
+                    <span class="ps-warn">Si algún número no está en el grupo, el envío se volverá lento por reintentos. Se recomienda crear un pool en la pestaña 🎯 Pools.</span>
+                  </div>
+                </div>
+              </div>
+            </transition>
           </div>
 
           <div class="field-group">
@@ -56,8 +76,8 @@
               <div class="q-lbl">En espera</div>
             </div>
             <div class="q-stat">
-              <div class="q-val accent">{{ queue.stats.active }}</div>
-              <div class="q-lbl">Procesando</div>
+              <div class="q-val accent">{{ queue.stats.ready }}</div>
+              <div class="q-lbl">Sesiones listas</div>
             </div>
             <div class="q-stat">
               <div class="q-val green">{{ queue.stats.totalCompleted }}</div>
@@ -83,17 +103,27 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import api from '@/api/axios'
 import { useQueueStore } from '@/stores/queue'
+import { usePoolsStore } from '@/stores/pools'
 
 const queue   = useQueueStore()
+const pools   = usePoolsStore()
 const sending = ref(false)
 const result  = ref(null)
 
 const form = reactive({ groupId: '', text: '', imagePath: '', documentPath: '' })
 
-onMounted(() => queue.fetchStats())
+onMounted(() => {
+  queue.fetchStats()
+  pools.fetchPools()
+})
+
+// Busca en tiempo real si el groupId actual tiene un pool configurado
+const activePool = computed(() =>
+  pools.pools.find(p => p.group_id === form.groupId.trim()) || null
+)
 
 async function sendMessage() {
   if (!form.groupId) return
@@ -148,6 +178,32 @@ async function sendMessage() {
 .field-textarea { resize: vertical; min-height: 90px; }
 .field-hint { font-size: 0.72rem; color: var(--text-dim); }
 .field-hint.warning { color: var(--yellow); }
+
+/* Indicador de pool */
+.pool-status {
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.85rem;
+  border: 1px solid;
+  margin-top: 0.1rem;
+}
+.pool-status.has-pool {
+  background: var(--green-muted);
+  border-color: rgba(52,211,153,0.25);
+}
+.pool-status.no-pool {
+  background: rgba(234,179,8,0.08);
+  border-color: rgba(234,179,8,0.25);
+}
+.ps-content { display: flex; gap: 0.6rem; align-items: flex-start; }
+.ps-icon    { font-size: 0.9rem; flex-shrink: 0; margin-top: 0.05rem; }
+.ps-info    { display: flex; flex-direction: column; gap: 0.15rem; }
+.ps-label   { font-size: 0.75rem; color: var(--text); }
+.ps-label b { font-weight: 600; }
+.ps-sessions { font-size: 0.7rem; color: var(--green); font-family: var(--font-mono); }
+.ps-warn    { font-size: 0.7rem; color: var(--yellow); line-height: 1.5; }
+
+.slide-enter-active, .slide-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.slide-enter-from, .slide-leave-to { opacity: 0; transform: translateY(-4px); }
 
 .btn { border: none; border-radius: var(--radius-sm); padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: 500; font-family: inherit; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 0.4rem; }
 .btn-primary { background: var(--accent); color: #fff; }
