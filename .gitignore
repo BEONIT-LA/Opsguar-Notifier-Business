@@ -63,6 +63,13 @@ logs/
 *.sublime-project
 
 # ─────────────────────────────
-# 🐳 Docker (opcional)
+# 🐳 Docker
 # ─────────────────────────────
 docker-compose.override.yml
+
+# ─────────────────────────────
+# 🔒 Certificados SSL
+# ─────────────────────────────
+nginx/ssl/*.pem
+nginx/ssl/*.crt
+nginx/ssl/*.key

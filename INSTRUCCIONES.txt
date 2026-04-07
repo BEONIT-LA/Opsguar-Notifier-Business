@@ -1,0 +1,89 @@
+╔══════════════════════════════════════════════════════════════╗
+║           OpsGuard — Instrucciones                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+==============================================================
+ PARA EL DESARROLLADOR — Crear y publicar imágenes
+==============================================================
+
+ Ejecuta estos comandos desde la raíz del proyecto:
+
+ ------------ App (Node.js + Vue) ----------------------------
+
+ docker build -t jeffoisrael/opsguard-app:v1 .
+ docker push jeffoisrael/opsguard-app:v1
+
+ ------------ Base de datos (Postgres + migraciones) ---------
+
+ docker build -t jeffoisrael/opsguard-db:v1 ./database
+ docker push jeffoisrael/opsguard-db:v1
+
+ ------------ Proxy (Nginx + configuración) ------------------
+
+ docker build -t jeffoisrael/opsguard-proxy:v1 ./nginx
+ docker push jeffoisrael/opsguard-proxy:v1
+
+ Para una nueva versión cambia v1 → v2 en los 3 comandos
+ y actualiza también el docker-compose.yml.
+
+
+==============================================================
+ PARA EL CLIENTE — Instalar el sistema
+==============================================================
+
+ REQUISITO: Tener Docker instalado.
+            https://docs.docker.com/engine/install/
+
+--------------------------------------------------------------
+ PASO 1 — Abre docker-compose.yml y cambia estas 2 líneas:
+--------------------------------------------------------------
+
+  POSTGRES_PASS: ← pon una contraseña para la base de datos
+  JWT_SECRET:    ← pon cualquier texto largo y secreto
+
+--------------------------------------------------------------
+ PASO 2 — Levanta el sistema
+--------------------------------------------------------------
+
+  docker compose up -d
+
+  La primera vez descarga las imágenes, puede tardar unos minutos.
+
+--------------------------------------------------------------
+ PASO 3 — Abre el panel en tu navegador
+--------------------------------------------------------------
+
+  http://IP-DE-TU-SERVIDOR
+
+  Usuario:    admin
+  Contraseña: admin123
+
+--------------------------------------------------------------
+ PASO 4 — Cambia la contraseña (IMPORTANTE)
+--------------------------------------------------------------
+
+  Dentro del panel → clic en tu nombre arriba a la derecha
+  → "Cambiar contraseña"
+
+
+==============================================================
+ COMANDOS ÚTILES
+==============================================================
+
+  Ver estado:        docker compose ps
+  Ver logs:          docker compose logs -f app
+  Detener:           docker compose down
+  Actualizar:        docker compose pull && docker compose up -d
+
+
+==============================================================
+ ¿OLVIDASTE LA CONTRASEÑA?
+==============================================================
+
+  docker exec opsguard-postgres psql -U opsguard -d opsguard -c \
+  "UPDATE users SET password='\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewYpR7jSh1G3.Ry' WHERE username='admin';"
+
+  Entra con admin / admin123 y cambia la contraseña.
+
+==============================================================

@@ -16,7 +16,7 @@
       </div>
       <div>
         <div class="logo-text">OPSGUARD</div>
-        <div class="logo-sub">WA Automation</div>
+        <div class="logo-sub">Notificaciones WhatsApp</div>
       </div>
     </div>
 
@@ -73,6 +73,11 @@
             <div class="dropdown-divider"></div>
 
             <!-- Acciones -->
+            <button class="dropdown-item" @click.stop="openChangePassword">
+              <span class="di-icon">🔑</span>
+              Cambiar contraseña
+            </button>
+            <div class="dropdown-divider"></div>
             <button class="dropdown-item danger" @click.stop="confirmLogout">
               <span class="di-icon">⏏</span>
               Cerrar sesión
@@ -82,6 +87,43 @@
       </div>
     </div>
   </header>
+
+  <!-- ── Modal cambiar contraseña ── -->
+  <teleport to="body">
+    <transition name="fade">
+      <div v-if="showChangePassword" class="confirm-overlay" @click.self="closeChangePassword">
+        <div class="confirm-card">
+          <div class="confirm-icon">🔑</div>
+          <div class="confirm-title">Cambiar contraseña</div>
+
+          <div class="cp-fields">
+            <div class="cp-field">
+              <label>Contraseña actual</label>
+              <input v-model="cpForm.current" type="password" placeholder="••••••••" autocomplete="current-password" />
+            </div>
+            <div class="cp-field">
+              <label>Nueva contraseña</label>
+              <input v-model="cpForm.newPass" type="password" placeholder="••••••••" autocomplete="new-password" />
+            </div>
+            <div class="cp-field">
+              <label>Confirmar nueva contraseña</label>
+              <input v-model="cpForm.confirm" type="password" placeholder="••••••••" autocomplete="new-password" />
+            </div>
+            <div v-if="cpError" class="cp-error">⚠ {{ cpError }}</div>
+            <div v-if="cpSuccess" class="cp-success">✓ {{ cpSuccess }}</div>
+          </div>
+
+          <div class="confirm-actions">
+            <button class="btn btn-ghost" @click.stop="closeChangePassword">Cancelar</button>
+            <button class="btn btn-accent" @click.stop="doChangePassword" :disabled="cpLoading">
+              <span v-if="cpLoading">Guardando...</span>
+              <span v-else>Guardar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </teleport>
 
   <!-- ── Modal de confirmación de logout ── -->
   <teleport to="body">
@@ -105,9 +147,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSocket }    from '@/composables/useSocket'
+import axios            from 'axios'
 
 const props = defineProps({
   activeTab: { type: String, required: true },
@@ -120,6 +163,64 @@ const showConfirm = ref(false)
 const userWrapRef = ref(null)
 const wsConnected = ref(false)
 const { socket }  = useSocket()
+
+// ── Cambiar contraseña ─────────────────────────────────────────
+const showChangePassword = ref(false)
+const cpLoading  = ref(false)
+const cpError    = ref('')
+const cpSuccess  = ref('')
+const cpForm     = reactive({ current: '', newPass: '', confirm: '' })
+
+function openChangePassword() {
+  menuOpen.value           = false
+  cpForm.current           = ''
+  cpForm.newPass           = ''
+  cpForm.confirm           = ''
+  cpError.value            = ''
+  cpSuccess.value          = ''
+  showChangePassword.value = true
+}
+
+function closeChangePassword() {
+  showChangePassword.value = false
+}
+
+async function doChangePassword() {
+  cpError.value   = ''
+  cpSuccess.value = ''
+
+  if (!cpForm.current || !cpForm.newPass || !cpForm.confirm) {
+    cpError.value = 'Completa todos los campos'
+    return
+  }
+  if (cpForm.newPass.length < 6) {
+    cpError.value = 'La nueva contraseña debe tener al menos 6 caracteres'
+    return
+  }
+  if (cpForm.newPass !== cpForm.confirm) {
+    cpError.value = 'Las contraseñas nuevas no coinciden'
+    return
+  }
+
+  cpLoading.value = true
+  try {
+    await axios.put('/api/auth/change-password', {
+      currentPassword: cpForm.current,
+      newPassword:     cpForm.newPass,
+    }, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+    cpSuccess.value = 'Contraseña actualizada correctamente'
+    cpForm.current  = ''
+    cpForm.newPass  = ''
+    cpForm.confirm  = ''
+    setTimeout(() => { showChangePassword.value = false }, 1500)
+  } catch (e) {
+    cpError.value = e.response?.data?.message || 'Error al cambiar la contraseña'
+  } finally {
+    cpLoading.value = false
+  }
+}
 
 const tabs = [
   { id: 'sessions', icon: '📱', label: 'Sesiones'  },
@@ -174,13 +275,23 @@ onUnmounted(() => {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--header-h);
-  background: rgba(22,27,38,0.93);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
+  background: rgba(10, 13, 18, 0.80);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(26,133,251,0.10);
   display: flex; align-items: center;
   padding: 0 1.5rem; gap: 0.75rem;
   z-index: 100;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+}
+
+/* Línea aurora en el borde inferior del header */
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 5%; right: 5%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(26,133,251,0.4), rgba(124,58,237,0.3), transparent);
 }
 
 .logo { display: flex; align-items: center; gap: 0.6rem; }
@@ -204,7 +315,12 @@ onUnmounted(() => {
   transition: all 0.15s; white-space: nowrap;
 }
 .nav-btn:hover  { color: var(--text); background: var(--bg3); }
-.nav-btn.active { color: var(--accent); background: var(--accent-muted); }
+.nav-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(26,133,251,0.25), rgba(124,58,237,0.20));
+  border: 1px solid rgba(26,133,251,0.25);
+  box-shadow: 0 2px 12px rgba(26,133,251,0.15);
+}
 
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
 
@@ -306,6 +422,23 @@ onUnmounted(() => {
 .btn-ghost:hover { color: var(--text); }
 .btn-danger { background: var(--red-muted); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
 .btn-danger:hover { background: rgba(248,113,113,0.2); }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-accent:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Campos cambiar contraseña ── */
+.cp-fields { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem; text-align: left; }
+.cp-field  { display: flex; flex-direction: column; gap: 0.35rem; }
+.cp-field label { font-size: 0.75rem; font-weight: 500; color: var(--text-dim); }
+.cp-field input {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;
+  color: var(--text); font-size: 0.88rem; font-family: inherit; outline: none;
+  transition: border-color 0.15s;
+}
+.cp-field input:focus { border-color: var(--accent); }
+.cp-error   { font-size: 0.8rem; color: var(--red); background: var(--red-muted); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); }
+.cp-success { font-size: 0.8rem; color: var(--green); background: rgba(74,222,128,0.1); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); }
 
 /* Animaciones */
 .dropdown-enter-active, .dropdown-leave-active { transition: opacity 0.15s, transform 0.15s; }

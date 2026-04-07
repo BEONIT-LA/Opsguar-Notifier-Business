@@ -19,7 +19,7 @@
         </div>
         <div>
           <div class="brand-name">OPSGUARD</div>
-          <div class="brand-sub">WA Automation Hub</div>
+          <div class="brand-sub">Notificaciones WhatsApp</div>
         </div>
       </div>
 
@@ -102,10 +102,7 @@ async function handleLogin() {
 </script>
 
 <style scoped>
-/**
- * scoped → los estilos aplican SOLO a este componente.
- * Vue agrega un atributo único data-v-xxxx para aislarlos.
- */
+/* ── Login page — Aurora UI + Glassmorphism (skill: Tech Startup) ── */
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -116,14 +113,61 @@ async function handleLogin() {
   padding: 1rem;
 }
 
+/* Orbs decorativos Aurora detrás del card */
+.login-page::before {
+  content: '';
+  position: fixed;
+  width: 600px; height: 600px;
+  top: -150px; left: -150px;
+  background: radial-gradient(circle, rgba(26,133,251,0.18) 0%, transparent 65%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: orb-float 12s ease-in-out infinite alternate;
+}
+.login-page::after {
+  content: '';
+  position: fixed;
+  width: 500px; height: 500px;
+  bottom: -100px; right: -100px;
+  background: radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 65%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: orb-float 15s ease-in-out infinite alternate-reverse;
+}
+
+/* transform + scale únicamente — GPU-accelerated ✅ */
+@keyframes orb-float {
+  0%   { transform: translate(0px, 0px)   scale(1);    opacity: 1;   }
+  50%  { transform: translate(25px, 15px) scale(1.08); opacity: 0.8; }
+  100% { transform: translate(40px, 30px) scale(1.12); opacity: 0.9; }
+}
+
+/* ── Card glassmorphism ── */
 .login-card {
   width: 100%;
   max-width: 400px;
-  background: var(--bg2);
-  border: 1px solid var(--border-hi);
-  border-radius: 16px;
+  background: rgba(13, 17, 23, 0.72);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(26,133,251,0.18);
+  border-radius: 20px;
   padding: 2.5rem 2rem;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.4), 0 0 0 1px rgba(26,133,251,0.08);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(255,255,255,0.03) inset,
+    0 1px 0 rgba(255,255,255,0.06) inset;
+  position: relative;
+  z-index: 2;
+}
+
+/* Línea superior degradada — detalle premium */
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(26,133,251,0.6), rgba(124,58,237,0.5), transparent);
+  border-radius: 1px;
 }
 
 .login-brand {
@@ -135,35 +179,40 @@ async function handleLogin() {
 
 .brand-icon {
   width: 48px; height: 48px;
-  background: var(--accent-muted);
-  border: 1px solid var(--border-hi);
-  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(26,133,251,0.2), rgba(124,58,237,0.2));
+  border: 1px solid rgba(26,133,251,0.3);
+  border-radius: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 20px rgba(26,133,251,0.25);
+  box-shadow: 0 0 24px rgba(26,133,251,0.3), 0 0 48px rgba(124,58,237,0.15);
 }
 
 .brand-name {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   font-family: var(--font-ui);
+  background: linear-gradient(135deg, #e2eaf6, #1a85fb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .brand-sub {
   font-size: 0.68rem;
   color: var(--text-dim);
   font-family: var(--font-mono);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 
 .login-title {
-  font-size: 1.3rem;
+  font-size: 1.35rem;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 0.3rem;
+  font-family: var(--font-ui);
 }
 
 .login-desc {
@@ -173,64 +222,72 @@ async function handleLogin() {
 }
 
 .login-form { display: flex; flex-direction: column; gap: 1rem; }
-
 .field-group { display: flex; flex-direction: column; gap: 0.4rem; }
 
 .field-label {
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--text-dim);
+  letter-spacing: 0.02em;
 }
 
 .field-input {
-  background: var(--bg3);
-  border: 1px solid var(--border);
+  background: rgba(30, 39, 54, 0.8);
+  border: 1px solid rgba(26,133,251,0.12);
   border-radius: var(--radius-sm);
-  padding: 0.65rem 0.9rem;
+  padding: 0.7rem 0.95rem;
   color: var(--text);
   font-size: 0.9rem;
   font-family: inherit;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .field-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-muted);
+  border-color: rgba(26,133,251,0.5);
+  background: rgba(30, 39, 54, 0.95);
+  box-shadow: 0 0 0 3px rgba(26,133,251,0.10), 0 0 20px rgba(26,133,251,0.08);
 }
 
 .field-input::placeholder { color: var(--text-muted); }
 
 .login-error {
-  background: var(--red-muted);
-  border: 1px solid rgba(248,113,113,0.2);
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.25);
   border-radius: var(--radius-sm);
   color: var(--red);
   font-size: 0.82rem;
   padding: 0.6rem 0.9rem;
 }
 
+/* Botón con gradiente aurora */
 .login-btn {
   margin-top: 0.5rem;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--violet) 100%);
   color: #fff;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 0.75rem;
+  padding: 0.8rem;
   font-size: 0.9rem;
   font-weight: 600;
-  font-family: inherit;
+  font-family: var(--font-ui);
   cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  box-shadow: 0 4px 20px rgba(26,133,251,0.25);
+  letter-spacing: 0.02em;
 }
 
-.login-btn:hover:not(:disabled) { background: var(--accent-hover); }
-.login-btn:active:not(:disabled) { transform: scale(0.98); }
-.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-btn:hover:not(:disabled) {
+  opacity: 0.92;
+  box-shadow: 0 6px 28px rgba(26,133,251,0.35);
+  transform: translateY(-1px);
+}
+.login-btn:active:not(:disabled) { transform: scale(0.98) translateY(0); }
+.login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .spinner {
   width: 16px; height: 16px;
@@ -247,5 +304,10 @@ async function handleLogin() {
   text-align: center;
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page::before,
+  .login-page::after { animation: none; }
 }
 </style>

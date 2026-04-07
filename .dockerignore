@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────
+# Dependencias Node (se reinstalan dentro del contenedor)
+# ─────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+
+# ─────────────────────────────────────────────
+# Variables de entorno (se pasan via docker-compose env_file)
+# ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─────────────────────────────────────────────
+# Sesiones WhatsApp (se montan como volumen externo)
+# ─────────────────────────────────────────────
+auth_sessions/
+auth_info_baileys/
+sessions/
+
+# ─────────────────────────────────────────────
+# Frontend compilado (se recompila en Stage 1)
+# ─────────────────────────────────────────────
+public/
+
+# ─────────────────────────────────────────────
+# Logs y temporales
+# ─────────────────────────────────────────────
+logs/
+*.log
+*.tmp
+*.bak
+
+# ─────────────────────────────────────────────
+# Git y herramientas de desarrollo
+# ─────────────────────────────────────────────
+.git/
+.gitignore
+.dockerignore
+.DS_Store
+.vscode/
+.idea/
+.claude/
+
+# ─────────────────────────────────────────────
+# Docker (no incluir en el contexto de build)
+# ─────────────────────────────────────────────
+docker-compose*.yml
+nginx/
