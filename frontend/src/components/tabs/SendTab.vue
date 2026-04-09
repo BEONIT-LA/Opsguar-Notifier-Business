@@ -47,16 +47,41 @@
           </div>
 
           <div class="field-group">
-            <label class="field-label">Ruta de Imagen <span class="opt">(opcional)</span></label>
-            <input v-model="form.imagePath" class="field-input" placeholder="/ruta/al/archivo.jpg" />
+            <label class="field-label">Imagen <span class="opt">(opcional · JPG, PNG, WEBP, GIF · máx 16 MB)</span></label>
+            <label class="file-drop" :class="{ 'has-file': imageFile }">
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" @change="onImageChange" class="file-input" />
+              <span v-if="!imageFile" class="file-placeholder">🖼 Haz clic o arrastra una imagen aquí</span>
+              <span v-else class="file-name">🖼 {{ imageFile.name }} <button type="button" class="file-clear" @click.prevent="clearImage">✕</button></span>
+            </label>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Ruta de Documento PDF <span class="opt">(opcional)</span></label>
-            <input v-model="form.documentPath" class="field-input" placeholder="/ruta/al/archivo.pdf" />
+            <label class="field-label">Documento <span class="opt">(opcional · PDF, DOC, DOCX · máx 16 MB)</span></label>
+            <label class="file-drop" :class="{ 'has-file': documentFile }">
+              <input type="file" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="onDocumentChange" class="file-input" />
+              <span v-if="!documentFile" class="file-placeholder">📄 Haz clic o arrastra un documento aquí</span>
+              <span v-else class="file-name">📄 {{ documentFile.name }} <button type="button" class="file-clear" @click.prevent="clearDocument">✕</button></span>
+            </label>
           </div>
 
           <div class="field-hint warning">⚡ Al menos uno de los tres campos de contenido es obligatorio</div>
+
+          <!-- Nota informativa sobre combinaciones recomendadas -->
+          <div class="combo-info">
+            <div class="combo-title">💡 Combinaciones recomendadas</div>
+            <div class="combo-row best">
+              <span class="combo-badge">✅ Ideal</span>
+              <span>Texto + Imagen — llegan como <b>1 solo mensaje</b></span>
+            </div>
+            <div class="combo-row best">
+              <span class="combo-badge">✅ Ideal</span>
+              <span>Texto + Documento — llegan como <b>1 solo mensaje</b></span>
+            </div>
+            <div class="combo-row warn">
+              <span class="combo-badge">⚠ Cuidado</span>
+              <span>Texto + Imagen + Documento — llegan como <b>2 mensajes</b>. Con alto volumen pueden llegar desordenados entre sí.</span>
+            </div>
+          </div>
 
           <button type="submit" class="btn btn-primary btn-full" :disabled="sending">
             <span v-if="sending" class="spinner"></span>
@@ -113,7 +138,9 @@ const pools   = usePoolsStore()
 const sending = ref(false)
 const result  = ref(null)
 
-const form = reactive({ groupId: '', text: '', imagePath: '', documentPath: '' })
+const form         = reactive({ groupId: '', text: '' })
+const imageFile    = ref(null)
+const documentFile = ref(null)
 
 onMounted(() => {
   queue.fetchStats()
@@ -125,9 +152,14 @@ const activePool = computed(() =>
   pools.pools.find(p => p.group_id === form.groupId.trim()) || null
 )
 
+function onImageChange(e)    { imageFile.value    = e.target.files[0] || null }
+function onDocumentChange(e) { documentFile.value = e.target.files[0] || null }
+function clearImage()        { imageFile.value    = null }
+function clearDocument()     { documentFile.value = null }
+
 async function sendMessage() {
   if (!form.groupId) return
-  if (!form.text && !form.imagePath && !form.documentPath) {
+  if (!form.text && !imageFile.value && !documentFile.value) {
     result.value = { success: false, error: 'Debes completar al menos: texto, imagen o documento' }
     return
   }
@@ -136,12 +168,13 @@ async function sendMessage() {
   result.value  = null
 
   try {
-    const payload = { groupId: form.groupId }
-    if (form.text)         payload.text         = form.text
-    if (form.imagePath)    payload.imagePath    = form.imagePath
-    if (form.documentPath) payload.documentPath = form.documentPath
+    const fd = new FormData()
+    fd.append('groupId', form.groupId)
+    if (form.text)           fd.append('text',     form.text)
+    if (imageFile.value)     fd.append('image',    imageFile.value)
+    if (documentFile.value)  fd.append('document', documentFile.value)
 
-    const { data } = await api.post('/send', payload)
+    const { data } = await api.post('/send', fd)
     result.value = { success: true, jobId: data.data.jobId }
     await queue.fetchStats()
   } catch (e) {
@@ -236,4 +269,56 @@ async function sendMessage() {
 
 .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Nota combinaciones */
+.combo-info {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.combo-title { font-size: 0.75rem; font-weight: 600; color: var(--text-dim); margin-bottom: 0.15rem; }
+.combo-row   { display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.76rem; color: var(--text-dim); line-height: 1.5; }
+.combo-row b { color: var(--text); font-weight: 600; }
+.combo-badge {
+  font-size: 0.68rem; font-weight: 600; white-space: nowrap;
+  padding: 0.1rem 0.45rem; border-radius: 4px; flex-shrink: 0; margin-top: 0.1rem;
+}
+.combo-row.best .combo-badge { background: var(--green-muted); color: var(--green); }
+.combo-row.warn .combo-badge { background: rgba(234,179,8,0.1); color: var(--yellow); }
+
+/* File upload drop zone */
+.file-drop {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  background: var(--bg3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.file-drop:hover { border-color: var(--accent); background: var(--accent-muted); }
+.file-drop.has-file { border-style: solid; border-color: var(--accent); background: var(--accent-muted); }
+.file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.file-placeholder { font-size: 0.82rem; color: var(--text-dim); pointer-events: none; }
+.file-name { font-size: 0.82rem; color: var(--text); pointer-events: none; display: flex; align-items: center; gap: 0.5rem; }
+.file-clear {
+  pointer-events: all;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 0.15rem;
+  line-height: 1;
+  z-index: 1;
+}
+.file-clear:hover { color: var(--red); }
 </style>

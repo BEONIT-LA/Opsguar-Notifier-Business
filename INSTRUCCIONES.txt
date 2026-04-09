@@ -68,6 +68,47 @@
 
 
 ==============================================================
+ CÓMO FUNCIONA EL ENVÍO EN PARALELO (referencia técnica)
+==============================================================
+
+ El sistema usa BullMQ como cola de mensajes. La concurrencia
+ del worker se ajusta automáticamente al número de sesiones
+ WhatsApp que estén listas (conectadas y autenticadas).
+
+ EJEMPLO CON 2 SESIONES (Anahi y Vero):
+
+   t=0s    Anahi  → envía job 1 ┐
+           Vero   → envía job 2 ┘  (al mismo tiempo)
+
+   t=3-6s  Anahi  → espera delay ┐
+           Vero   → espera delay ┘  (cada una su propio delay)
+
+   t=6-12s Anahi  → envía job 3 ┐
+           Vero   → envía job 4 ┘  (al mismo tiempo de nuevo)
+
+   Dos carriles paralelos independientes. Cada sesión tiene su
+   propio ritmo de 3–6 s entre envíos, no se esperan entre sí.
+
+ REGLA: sesiones = carriles paralelos
+   1 sesión  → 1 mensaje a la vez, secuencial
+   2 sesiones → 2 mensajes al mismo tiempo
+   5 sesiones → 5 mensajes al mismo tiempo
+
+ SOBRE EL RATE LIMIT DE WHATSAPP:
+   WhatsApp puede bloquear temporalmente un número si detecta
+   que envía mensajes muy rápido (ráfaga). El delay de 3–6 s
+   entre cada envío existe precisamente para evitar esto.
+   Si ocurre un rate limit, el sistema reintenta automáticamente
+   hasta 5 veces con backoff exponencial (15s → 30s → 60s...).
+   Los jobs finalmente se completan sin intervención manual.
+
+ POOLS Y ORDEN:
+   Si se necesita que los mensajes lleguen en orden estricto
+   a un grupo, configurar un pool con UNA sola sesión para ese
+   grupo. Con 1 sesión los jobs se procesan en secuencia exacta.
+   Con múltiples sesiones el orden puede variar levemente.
+
+==============================================================
  COMANDOS ÚTILES
 ==============================================================
 

@@ -19,6 +19,7 @@ function randomDelay(min = 3000, max = 6000) {
   return delay(Math.floor(Math.random() * (max - min + 1)) + min);
 }
 
+
 function esMiembroError(msg = '') {
   return (
     msg.includes('not-authorized')    ||
@@ -59,31 +60,69 @@ function updateConcurrency() {
 
 // ── Función de envío ──────────────────────────────────────────
 
-async function enviarMensajes(sock, groupId, { text, imagePath, documentPath }) {
-  if (text && text.trim()) {
+function deleteTempFile(filePath) {
+  if (filePath) {
+    try { fs.unlinkSync(filePath); } catch (_) {}
+  }
+}
+
+function guessMimetype(filePath) {
+  const ext = path.extname(filePath || '').toLowerCase();
+  const map = {
+    '.pdf':  'application/pdf',
+    '.doc':  'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
+async function enviarMensajes(sock, groupId, { text, imagePath, documentPath, imageOriginalName, documentOriginalName }) {
+  const hasText     = !!(text && text.trim());
+  const hasImage    = !!(imagePath && fs.existsSync(imagePath));
+  const hasDocument = !!(documentPath && fs.existsSync(documentPath));
+
+  // ── Caso: solo texto (sin archivos) ──────────────────────────
+  if (hasText && !hasImage && !hasDocument) {
     await sock.sendMessage(groupId, { text: text.trim() });
-    await randomDelay(3000, 6000);
+    await randomDelay(); // frena antes de que la sesión tome el siguiente job
+    return;
   }
 
-  if (imagePath && fs.existsSync(imagePath)) {
-    const buffer = fs.readFileSync(imagePath);
-    if (buffer.length > 0) {
-      await sock.sendMessage(groupId, {
-        image: buffer,
-        fileName: path.basename(imagePath),
-      });
-      await randomDelay(3000, 6000);
+  // ── Caso: imagen (con o sin texto como caption) ───────────────
+  if (hasImage) {
+    try {
+      const buffer = fs.readFileSync(imagePath);
+      if (buffer.length > 0) {
+        const msg = { image: buffer };
+        // Si hay texto y NO hay documento → el texto va como caption de la imagen
+        // Si hay documento también → el texto irá como caption de la imagen igual,
+        // así el documento queda libre sin repetir el texto
+        if (hasText) msg.caption = text.trim();
+        await sock.sendMessage(groupId, msg);
+        await randomDelay(3000, 6000);
+      }
+    } finally {
+      deleteTempFile(imagePath);
     }
   }
 
-  if (documentPath && fs.existsSync(documentPath)) {
-    const buffer = fs.readFileSync(documentPath);
-    if (buffer.length > 0) {
-      await sock.sendMessage(groupId, {
-        document: buffer,
-        fileName: path.basename(documentPath),
-        mimetype: 'application/pdf',
-      });
+  // ── Caso: documento (con caption solo si no había imagen) ─────
+  if (hasDocument) {
+    try {
+      const buffer = fs.readFileSync(documentPath);
+      if (buffer.length > 0) {
+        const msg = {
+          document: buffer,
+          fileName: documentOriginalName || path.basename(documentPath),
+          mimetype: guessMimetype(documentOriginalName || documentPath),
+        };
+        // Si hay texto y NO hubo imagen → el texto va como caption del documento
+        if (hasText && !hasImage) msg.caption = text.trim();
+        await sock.sendMessage(groupId, msg);
+        await randomDelay(); // frena antes de que la sesión tome el siguiente job
+      }
+    } finally {
+      deleteTempFile(documentPath);
     }
   }
 }

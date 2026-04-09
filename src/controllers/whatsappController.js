@@ -67,25 +67,37 @@ function getSessionQR(req, res) {
 
 async function sendMessage(req, res) {
   try {
-    const { groupId, text, imagePath, documentPath } = req.body;
+    const { groupId, text } = req.body;
+
+    // Archivos subidos via multipart/form-data
+    const imageFile    = req.files?.image?.[0]    || null;
+    const documentFile = req.files?.document?.[0] || null;
 
     if (!groupId) {
       return res.status(400).json({ success: false, message: "'groupId' es obligatorio" });
     }
-    if (!text && !imagePath && !documentPath) {
+    if (!text && !imageFile && !documentFile) {
       return res.status(400).json({
         success: false,
-        message: 'Debe enviar al menos: text, imagePath o documentPath',
+        message: "Debe enviar al menos uno: 'text', 'image' o 'document'",
       });
     }
 
     const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'desconocida';
-    // El worker consulta el pool en tiempo real al procesar — no lo guardamos en el job
-    const jobId = await enqueueMessage({ groupId, text, imagePath, documentPath, _ip: ip });
+
+    const jobId = await enqueueMessage({
+      groupId,
+      text:         text         || null,
+      imagePath:    imageFile    ? imageFile.path     : null,
+      documentPath: documentFile ? documentFile.path  : null,
+      imageOriginalName:    imageFile    ? imageFile.originalname    : null,
+      documentOriginalName: documentFile ? documentFile.originalname : null,
+      _ip: ip,
+    });
 
     return res.status(202).json({
       success: true,
-      message: 'Mensaje encolado. El worker usará el pool activo al momento de procesar.',
+      message: 'Mensaje encolado correctamente.',
       data: { jobId },
     });
   } catch (error) {

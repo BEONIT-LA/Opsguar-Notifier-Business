@@ -1,6 +1,7 @@
 const express = require('express');
-const router = express.Router();
-const ctrl = require('../controllers/whatsappController');
+const router  = express.Router();
+const ctrl    = require('../controllers/whatsappController');
+const { uploadSend } = require('../middleware/uploadMiddleware');
 
 // ─── Sesiones ─────────────────────────────────────────────────
 router.get('/sessions', ctrl.listSessions);
@@ -9,7 +10,7 @@ router.delete('/sessions/:id', ctrl.deleteSession);
 router.get('/sessions/:id/qr', ctrl.getSessionQR);
 
 // ─── Envío vía cola Redis (round-robin automático) ────────────
-router.post('/send', ctrl.sendMessage);
+router.post('/send', uploadSend, ctrl.sendMessage);
 router.get('/queue/stats', ctrl.queueStats);
 
 // ─── Health check ─────────────────────────────────────────────
