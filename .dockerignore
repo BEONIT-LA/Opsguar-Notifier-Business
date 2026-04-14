@@ -32,6 +32,26 @@ logs/
 *.bak
 
 # ─────────────────────────────────────────────
+# Tests (solo para desarrollo, no van en producción)
+# ─────────────────────────────────────────────
+tests/
+__mocks__/
+src/config/__mocks__/
+jest.config.*
+
+# ─────────────────────────────────────────────
+# Uploads temporales
+# ─────────────────────────────────────────────
+uploads/
+
+# ─────────────────────────────────────────────
+# Documentación y archivos de desarrollo
+# ─────────────────────────────────────────────
+INSTRUCCIONES.txt
+README.md
+*.md
+
+# ─────────────────────────────────────────────
 # Git y herramientas de desarrollo
 # ─────────────────────────────────────────────
 .git/

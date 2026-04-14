@@ -1,0 +1,41 @@
+# ═══════════════════════════════════════════════════════════════
+# Ingress — reemplaza al nginx del docker-compose
+# Requiere que el cluster tenga un Ingress Controller instalado.
+#
+# AWS EKS:   instala AWS Load Balancer Controller
+# GKE:       viene incluido
+# minikube:  minikube addons enable ingress
+# otros:     kubectl apply -f https://raw.githubusercontent.com/
+#            kubernetes/ingress-nginx/main/deploy/static/
+#            provider/cloud/deploy.yaml
+#
+# Reemplaza "tu-dominio.com" con tu dominio real.
+# ═══════════════════════════════════════════════════════════════
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opsguard-ingress
+  namespace: opsguard
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Para SSL automático con cert-manager (opcional):
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  # ingressClassName: nginx   ← descomenta si tu cluster lo requiere
+  rules:
+    - host: tu-dominio.com    # ← cambia por tu dominio
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 3000
+  # SSL (opcional — requiere cert-manager):
+  # tls:
+  #   - hosts:
+  #       - tu-dominio.com
+  #     secretName: opsguard-tls

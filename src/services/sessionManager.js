@@ -1,8 +1,21 @@
 const EventEmitter = require('events');
 const path = require('path');
 const fs = require('fs');
-const pino = require('pino');
 const qrcode = require('qrcode');
+
+// Logger completamente mudo para Baileys.
+// pino({ level: 'silent' }) no suprime todos los niveles en todas las versiones,
+// por eso usamos un objeto no-op que garantiza silencio total (incluyendo "Bad MAC").
+const noopLogger = {
+  level: 'silent',
+  trace: () => {},
+  debug: () => {},
+  info:  () => {},
+  warn:  () => {},
+  error: () => {},
+  fatal: () => {},
+  child: function() { return this; },
+};
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -88,7 +101,7 @@ class SessionManager extends EventEmitter {
 
       const sock = makeWASocket({
         version,
-        logger: pino({ level: 'silent' }),
+        logger: noopLogger,
         printQRInTerminal: false,
         auth: state,
         browser: ['Microservicio', 'Chrome', '1.0.0'],

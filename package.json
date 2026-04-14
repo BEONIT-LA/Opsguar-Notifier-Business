@@ -8,7 +8,15 @@
     "ui:dev": "cd frontend && npm run dev",
     "ui:build": "cd frontend && npm run build",
     "ui:install": "cd frontend && npm install",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest --runInBand --forceExit",
+    "test:watch": "jest --watch --runInBand"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "testTimeout": 15000,
+    "setupFiles": ["./tests/setup.js"]
   },
   "keywords": [],
   "author": "",
@@ -27,5 +35,9 @@
     "qrcode": "^1.5.3",
     "qrcode-terminal": "^0.12.0",
     "socket.io": "^4.7.0"
+  },
+  "devDependencies": {
+    "jest": "^30.3.0",
+    "supertest": "^7.2.2"
   }
 }

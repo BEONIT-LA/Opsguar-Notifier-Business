@@ -1,0 +1,99 @@
+# ═══════════════════════════════════════════════════════════════
+# OpsGuard — GitLab CI/CD
+#
+# FLUJO:
+#   push a cualquier rama → corre tests
+#   git tag v1.0.0        → construye y sube las 3 imágenes a Docker Hub
+#
+# VARIABLES REQUERIDAS (GitLab → Settings → CI/CD → Variables):
+#   DOCKERHUB_USER   → tu usuario de Docker Hub  (jeffoisrael)
+#   DOCKERHUB_TOKEN  → Access Token de Docker Hub (no la contraseña)
+#                      https://hub.docker.com/settings/security
+# ═══════════════════════════════════════════════════════════════
+
+stages:
+  - test
+  - build
+
+variables:
+  REGISTRY: jeffoisrael
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+# ─────────────────────────────────────────────────────────────
+# TEST — corre en cada push (todas las ramas)
+# ─────────────────────────────────────────────────────────────
+test:
+  stage: test
+  image: node:20-alpine
+  cache:
+    key: node-modules-$CI_COMMIT_REF_SLUG
+    paths:
+      - node_modules/
+  script:
+    - npm ci --prefer-offline
+    - npm test
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never          # en tags no repite tests, ya pasaron en el push
+    - when: always
+
+# ─────────────────────────────────────────────────────────────
+# BUILD — solo cuando se crea un tag tipo v1.0.0
+# ─────────────────────────────────────────────────────────────
+.build:
+  stage: build
+  image: docker:26
+  services:
+    - docker:26-dind
+  before_script:
+    # Login en Docker Hub
+    - echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
+    # Habilitar builds multi-arquitectura (amd64 + arm64)
+    - docker run --rm --privileged tonistiigi/binfmt --install all
+    - docker buildx create --name multiarch --driver docker-container --use
+    - docker buildx inspect --bootstrap
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/   # solo tags: v1.0.0, v1.2.3, etc.
+
+build-app:
+  extends: .build
+  script:
+    - VERSION=${CI_COMMIT_TAG#v}
+    - |
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --tag "${REGISTRY}/opsguard-app:v${VERSION}" \
+        --tag "${REGISTRY}/opsguard-app:latest" \
+        --cache-from "type=registry,ref=${REGISTRY}/opsguard-app:latest" \
+        --cache-to   "type=inline" \
+        --push \
+        .
+
+build-db:
+  extends: .build
+  script:
+    - VERSION=${CI_COMMIT_TAG#v}
+    - |
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --tag "${REGISTRY}/opsguard-db:v${VERSION}" \
+        --tag "${REGISTRY}/opsguard-db:latest" \
+        --cache-from "type=registry,ref=${REGISTRY}/opsguard-db:latest" \
+        --cache-to   "type=inline" \
+        --push \
+        ./database
+
+build-proxy:
+  extends: .build
+  script:
+    - VERSION=${CI_COMMIT_TAG#v}
+    - |
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --tag "${REGISTRY}/opsguard-proxy:v${VERSION}" \
+        --tag "${REGISTRY}/opsguard-proxy:latest" \
+        --cache-from "type=registry,ref=${REGISTRY}/opsguard-proxy:latest" \
+        --cache-to   "type=inline" \
+        --push \
+        ./nginx
