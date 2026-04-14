@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sessions-pvc
+  namespace: opsguard
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: opsguard
+spec:
+  replicas: 1   # ⚠ Mantener en 1 — las sesiones WhatsApp no soportan múltiples réplicas
+  selector:
+    matchLabels:
+      app: opsguard-app
+  template:
+    metadata:
+      labels:
+        app: opsguard-app
+    spec:
+      containers:
+        - name: app
+          image: jeffoisrael/opsguard-app:latest
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: REDIS_URL
+              value: redis://redis:6379
+            - name: JWT_EXPIRES
+              value: 8h
+            - name: POSTGRES_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: opsguard-secrets
+                  key: POSTGRES_PASS
+            - name: DATABASE_URL
+              value: postgresql://opsguard:$(POSTGRES_PASS)@postgres:5432/opsguard
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opsguard-secrets
+                  key: JWT_SECRET
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: sessions-data
+              mountPath: /app/auth_sessions
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: sessions-data
+          persistentVolumeClaim:
+            claimName: sessions-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: opsguard
+spec:
+  selector:
+    app: opsguard-app
+  ports:
+    - port: 3000
+      targetPort: 3000

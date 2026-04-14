@@ -1,0 +1,88 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════════
+# OpsGuard WhatsApp Notifications
+#
+# ANTES DE INICIAR — edita estas variables:
+#   POSTGRES_PASS  → contraseña de la base de datos
+#   JWT_SECRET     → cualquier texto largo y secreto
+#
+# INICIAR:   docker compose up -d
+# DETENER:   docker compose down
+# LOGS:      docker compose logs -f app
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # Base de datos — imagen con migraciones incluidas
+  postgres:
+    image: jeffoisrael/opsguard-db:latest
+    container_name: opsguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       opsguard
+      POSTGRES_USER:     opsguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:-opsguard2024}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsguard -d opsguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cola de mensajes — imagen oficial
+  redis:
+    image: redis:7-alpine
+    container_name: opsguard-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Aplicación principal — Node.js + Vue compilado
+  app:
+    image: jeffoisrael/opsguard-app:latest
+    container_name: opsguard-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV:     production
+      REDIS_URL:    redis://redis:6379
+      DATABASE_URL: postgresql://opsguard:${POSTGRES_PASS:-opsguard2024}@postgres:5432/opsguard
+      JWT_SECRET:   ${JWT_SECRET:-cambia_esto_por_una_clave_segura}
+      JWT_EXPIRES:  8h
+    volumes:
+      - sessions_data:/app/auth_sessions
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Proxy — nginx con configuración incluida
+  nginx:
+    image: jeffoisrael/opsguard-proxy:latest
+    container_name: opsguard-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  sessions_data:

@@ -1,0 +1,79 @@
+# ─────────────────────────────
+# 📦 Node.js dependencies
+# ─────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─────────────────────────────
+# 🗂️ Environment variables
+# ─────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ─────────────────────────────
+# ⚙️ Build / compiled output
+# ─────────────────────────────
+dist/
+build/
+coverage/
+# Archivos compilados de Vue (Vite los genera en public/assets/)
+# Se regeneran con: cd frontend && npm run build
+public/assets/
+
+# ─────────────────────────────
+# 💬 Baileys WhatsApp session files
+# ─────────────────────────────
+# 🚨 CRÍTICO: contienen llaves privadas de autenticación WhatsApp.
+# Si se suben al repo cualquiera puede robar las sesiones.
+auth_sessions/
+auth_info_baileys/
+auth_info_multi.json
+baileys_auth_info/
+sessions/
+session/
+tmp/
+*.json.bak
+
+# ─────────────────────────────
+# 📎 Archivos temporales de carga
+# ─────────────────────────────
+uploads/tmp/
+
+# ─────────────────────────────
+# 🧾 Logs y temporales
+# ─────────────────────────────
+logs/
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.DS_Store
+
+# ─────────────────────────────
+# 🧠 Archivos de IDE / sistema
+# ─────────────────────────────
+.vscode/
+.idea/
+.claude/
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# ─────────────────────────────
+# 🐳 Docker
+# ─────────────────────────────
+docker-compose.override.yml
+
+# ─────────────────────────────
+# 🔒 Certificados SSL
+# ─────────────────────────────
+nginx/ssl/*.pem
+nginx/ssl/*.crt
+nginx/ssl/*.key

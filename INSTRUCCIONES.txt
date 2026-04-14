@@ -1,0 +1,288 @@
+╔══════════════════════════════════════════════════════════════╗
+║           OpsGuard WhatsApp — Instrucciones                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+==============================================================
+ ⚠  PUNTO CRÍTICO — RÉPLICAS EN KUBERNETES / DOCKER SWARM
+==============================================================
+
+ El servicio "app" SIEMPRE debe correr con UNA SOLA instancia.
+ NO se puede escalar a 2 o más réplicas.
+
+ ¿Por qué?
+   WhatsApp solo permite que un número esté conectado desde
+   un lugar a la vez. Si corren 2 pods con la misma sesión,
+   WhatsApp desconecta ambos y las sesiones se caen.
+
+   Es el mismo comportamiento de WhatsApp Web: si abres la
+   sesión en otro navegador, el anterior se desconecta.
+
+ En Kubernetes (04-app.yaml):
+   replicas: 1   ← NUNCA cambiar este valor
+
+ En Docker Swarm:
+   deploy:
+     replicas: 1  ← NUNCA cambiar este valor
+
+ Los demás servicios (postgres, redis) sí pueden tener
+ configuraciones de alta disponibilidad sin problema.
+
+
+==============================================================
+ PARA EL DESARROLLADOR — Crear y publicar imágenes
+==============================================================
+
+ ARQUITECTURAS SOPORTADAS: linux/amd64 (x86) + linux/arm64 (ARM)
+ Esto permite que el sistema corra en cualquier servidor:
+ VPS estándar, AWS Graviton, Oracle Cloud ARM, etc.
+
+ PRIMERA VEZ — configurar buildx (solo una vez):
+ -------------------------------------------------------
+
+   docker buildx create --name multiarch --use
+   docker login   ← ingresa usuario y contraseña de Docker Hub
+
+ PUBLICAR UNA NUEVA VERSIÓN (script automático):
+ -------------------------------------------------------
+
+   chmod +x build.sh        ← solo la primera vez
+   ./build.sh 1.0.0         ← construye y sube v1.0.0
+
+   El script construye las 3 imágenes en paralelo para ambas
+   arquitecturas y las sube a Docker Hub con dos tags:
+     - jeffoisrael/opsguard-app:v1.0.0   (versión fija)
+     - jeffoisrael/opsguard-app:latest    (siempre la más nueva)
+
+ ESTRATEGIA DE VERSIONES:
+ -------------------------------------------------------
+
+   v1.0.0 → primera versión estable
+   v1.0.1 → corrección de bug sin cambios de estructura
+   v1.1.0 → nueva funcionalidad sin romper compatibilidad
+   v2.0.0 → cambio mayor (nueva BD, nueva API, etc.)
+
+   Regla: cuando subas versión en build.sh, actualiza también
+   el docker-compose.yml si quieres que los clientes usen
+   una versión fija en lugar de "latest".
+
+ EN WINDOWS (sin bash):
+ -------------------------------------------------------
+
+   Ejecuta los comandos manualmente:
+
+   docker buildx build --platform linux/amd64,linux/arm64 ^
+     -t jeffoisrael/opsguard-app:v1.0.0 ^
+     -t jeffoisrael/opsguard-app:latest --push .
+
+   docker buildx build --platform linux/amd64,linux/arm64 ^
+     -t jeffoisrael/opsguard-db:v1.0.0 ^
+     -t jeffoisrael/opsguard-db:latest --push ./database
+
+   docker buildx build --platform linux/amd64,linux/arm64 ^
+     -t jeffoisrael/opsguard-proxy:v1.0.0 ^
+     -t jeffoisrael/opsguard-proxy:latest --push ./nginx
+
+
+==============================================================
+ VARIABLES DE ENTORNO — Dónde y cómo configurarlas
+==============================================================
+
+ Las variables de entorno son los valores secretos del sistema
+ (contraseñas, claves). Dependiendo de la plataforma se
+ configuran de forma diferente:
+
+ ── DOCKER COMPOSE (VPS / EC2 / servidor propio) ─────────────
+
+   Se crea un archivo llamado ".env" en la misma carpeta
+   donde está el docker-compose.yml.
+
+   Formato del archivo .env:
+   ┌─────────────────────────────────────────┐
+   │ POSTGRES_PASS=mi-password-seguro        │
+   │ JWT_SECRET=una-clave-larga-y-aleatoria  │
+   └─────────────────────────────────────────┘
+
+   Docker Compose lo lee automáticamente al hacer:
+     docker compose up -d
+
+   Tip para generar un JWT_SECRET seguro:
+     openssl rand -hex 32
+
+ ── KUBERNETES ────────────────────────────────────────────────
+
+   No existe archivo .env. Las variables van en el archivo
+   kubernetes/01-secrets.yaml como valores en base64.
+
+   Para convertir un valor a base64:
+     echo -n "mi-password-seguro" | base64
+
+   Luego se pega el resultado en el secrets.yaml y se aplica:
+     kubectl apply -f kubernetes/01-secrets.yaml
+
+ ── RESUMEN ───────────────────────────────────────────────────
+
+   Docker Compose → archivo .env en el servidor
+   Kubernetes     → 01-secrets.yaml en el cluster
+   En ambos casos → NUNCA subir estos valores al repositorio
+
+==============================================================
+ PARA EL CLIENTE — Instalar el sistema
+==============================================================
+
+ REQUISITO: Tener Docker instalado.
+            https://docs.docker.com/engine/install/
+
+--------------------------------------------------------------
+ PASO 1 — Abre docker-compose.yml y cambia estas 2 líneas:
+--------------------------------------------------------------
+
+  POSTGRES_PASS: ← pon una contraseña para la base de datos
+  JWT_SECRET:    ← pon cualquier texto largo y secreto
+
+--------------------------------------------------------------
+ PASO 2 — Levanta el sistema
+--------------------------------------------------------------
+
+  docker compose up -d
+
+  La primera vez descarga las imágenes, puede tardar unos minutos.
+
+--------------------------------------------------------------
+ PASO 3 — Abre el panel en tu navegador
+--------------------------------------------------------------
+
+  http://IP-DE-TU-SERVIDOR
+
+  Usuario:    admin
+  Contraseña: admin123
+
+--------------------------------------------------------------
+ PASO 4 — Cambia la contraseña (IMPORTANTE)
+--------------------------------------------------------------
+
+  Dentro del panel → clic en tu nombre arriba a la derecha
+  → "Cambiar contraseña"
+
+
+==============================================================
+ TESTS AUTOMATIZADOS
+==============================================================
+
+ REQUISITO: Node.js instalado localmente (no necesita Docker).
+
+ EJECUTAR TODOS LOS TESTS:
+
+   npm test
+
+ EJECUTAR EN MODO WATCH (re-ejecuta al guardar cambios):
+
+   npm run test:watch
+
+ SUITES INCLUIDAS:
+
+   tests/auth.test.js       — Login, cambio de contraseña
+   tests/security.test.js   — Protección JWT en todas las rutas
+   tests/validation.test.js — Validación de inputs en POST /send
+   tests/health.test.js     — Health check, status, queue stats
+
+ CASOS QUE CUBRE CADA SUITE:
+
+   auth.test.js (8 tests)
+   ├── ✅ Login correcto devuelve token JWT
+   ├── ❌ Contraseña incorrecta devuelve 401
+   ├── ❌ Usuario no existe devuelve 401
+   ├── ❌ Faltan campos devuelve 400
+   ├── ✅ Cambio de contraseña correcto
+   ├── ❌ Contraseña actual incorrecta devuelve 401
+   ├── ❌ Nueva contraseña muy corta devuelve 400
+   └── ❌ Sin token devuelve 401
+
+   security.test.js (14 tests)
+   ├── ❌ Cada ruta protegida sin token → 401
+   ├── ❌ Cada ruta con token expirado → 401
+   ├── ❌ Cada ruta con secret incorrecto → 401
+   ├── ❌ Token mal formado → 401
+   ├── ❌ Header sin "Bearer" → 401
+   └── ✅ Token válido pasa la autenticación
+
+   validation.test.js (6 tests)
+   ├── ❌ Sin groupId devuelve 400
+   ├── ❌ Sin contenido devuelve 400
+   ├── ✅ JSON con texto devuelve 202 y jobId
+   ├── ✅ multipart con texto devuelve 202
+   ├── ✅ multipart con imagen PNG devuelve 202
+   └── ❌ Sin token devuelve 401
+
+   health.test.js (7 tests)
+   ├── ✅ Health devuelve status y uptime > 0
+   ├── ✅ Status devuelve totalSessions y readySessions
+   ├── ✅ readySessions siempre <= totalSessions
+   ├── ✅ Queue stats devuelve todos los campos
+   └── ✅ Todos los valores numéricos son >= 0
+
+ NOTA: Los tests usan mocks — no requieren WhatsApp, Redis
+ ni PostgreSQL activos. Se pueden ejecutar en cualquier momento
+ sin afectar el servidor en producción.
+
+==============================================================
+ CÓMO FUNCIONA EL ENVÍO EN PARALELO (referencia técnica)
+==============================================================
+
+ El sistema usa BullMQ como cola de mensajes. La concurrencia
+ del worker se ajusta automáticamente al número de sesiones
+ WhatsApp que estén listas (conectadas y autenticadas).
+
+ EJEMPLO CON 2 SESIONES (Anahi y Vero):
+
+   t=0s    Anahi  → envía job 1 ┐
+           Vero   → envía job 2 ┘  (al mismo tiempo)
+
+   t=3-6s  Anahi  → espera delay ┐
+           Vero   → espera delay ┘  (cada una su propio delay)
+
+   t=6-12s Anahi  → envía job 3 ┐
+           Vero   → envía job 4 ┘  (al mismo tiempo de nuevo)
+
+   Dos carriles paralelos independientes. Cada sesión tiene su
+   propio ritmo de 3–6 s entre envíos, no se esperan entre sí.
+
+ REGLA: sesiones = carriles paralelos
+   1 sesión  → 1 mensaje a la vez, secuencial
+   2 sesiones → 2 mensajes al mismo tiempo
+   5 sesiones → 5 mensajes al mismo tiempo
+
+ SOBRE EL RATE LIMIT DE WHATSAPP:
+   WhatsApp puede bloquear temporalmente un número si detecta
+   que envía mensajes muy rápido (ráfaga). El delay de 3–6 s
+   entre cada envío existe precisamente para evitar esto.
+   Si ocurre un rate limit, el sistema reintenta automáticamente
+   hasta 5 veces con backoff exponencial (15s → 30s → 60s...).
+   Los jobs finalmente se completan sin intervención manual.
+
+ POOLS Y ORDEN:
+   Si se necesita que los mensajes lleguen en orden estricto
+   a un grupo, configurar un pool con UNA sola sesión para ese
+   grupo. Con 1 sesión los jobs se procesan en secuencia exacta.
+   Con múltiples sesiones el orden puede variar levemente.
+
+==============================================================
+ COMANDOS ÚTILES
+==============================================================
+
+  Ver estado:        docker compose ps
+  Ver logs:          docker compose logs -f app
+  Detener:           docker compose down
+  Actualizar:        docker compose pull && docker compose up -d
+
+
+==============================================================
+ ¿OLVIDASTE LA CONTRASEÑA?
+==============================================================
+
+  docker exec opsguard-postgres psql -U opsguard -d opsguard -c \
+  "UPDATE users SET password='\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewYpR7jSh1G3.Ry' WHERE username='admin';"
+
+  Entra con admin / admin123 y cambia la contraseña.
+
+==============================================================
