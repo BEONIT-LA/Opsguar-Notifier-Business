@@ -51,7 +51,9 @@ test:
     - echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
     # Habilitar builds multi-arquitectura (amd64 + arm64)
     - docker run --rm --privileged tonistiigi/binfmt --install all
-    - docker buildx create --name multiarch --driver docker-container --use
+    # Crear contexto para compatibilidad con dind + TLS
+    - docker context create builders
+    - docker buildx create --name multiarch --driver docker-container --use builders
     - docker buildx inspect --bootstrap
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/   # solo tags: v1.0.0, v1.2.3, etc.
