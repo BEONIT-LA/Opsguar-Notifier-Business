@@ -30,29 +30,52 @@
 
 
 ==============================================================
- PARA EL DESARROLLADOR — Crear y publicar imágenes
+ PARA EL DESARROLLADOR — CI/CD y publicación de imágenes
 ==============================================================
+
+ IMÁGENES EN DOCKER HUB (públicas):
+   jeffoisrael/opsguardchannel-app    → Node.js + Vue compilado
+   jeffoisrael/opsguardchannel-db     → PostgreSQL + migraciones
+   jeffoisrael/opsguardchannel-proxy  → Nginx reverse proxy
 
  ARQUITECTURAS SOPORTADAS: linux/amd64 (x86) + linux/arm64 (ARM)
  Esto permite que el sistema corra en cualquier servidor:
  VPS estándar, AWS Graviton, Oracle Cloud ARM, etc.
 
- PRIMERA VEZ — configurar buildx (solo una vez):
+ CI/CD CON GITLAB — FLUJO AUTOMÁTICO:
  -------------------------------------------------------
 
-   docker buildx create --name multiarch --use
-   docker login   ← ingresa usuario y contraseña de Docker Hub
+   El archivo .gitlab-ci.yml automatiza todo el proceso:
 
- PUBLICAR UNA NUEVA VERSIÓN (script automático):
+   1. PUSH a cualquier rama → corre los 35 tests automáticamente
+      Si un test falla → recibes email de notificación
+
+   2. GIT TAG (ej: v1.0.3) → construye y sube las 3 imágenes
+      a Docker Hub en paralelo (amd64 + arm64)
+
+   Flujo del día a día:
+     git add .
+     git commit -m "descripción del cambio"
+     git push origin develop          ← tests corren automático
+
+   Cuando el código está listo para producción:
+     # En GitLab: merge develop → main
+     # Luego crear el tag:
+     git tag v1.0.3
+     git push origin v1.0.3           ← build automático en GitLab
+
+   Ver el pipeline en GitLab: Build → Pipelines
+
+ VARIABLES REQUERIDAS EN GITLAB (solo se configuran una vez):
  -------------------------------------------------------
 
-   chmod +x build.sh        ← solo la primera vez
-   ./build.sh 1.0.0         ← construye y sube v1.0.0
+   GitLab → Settings → CI/CD → Variables:
+     DOCKERHUB_USER   = jeffoisrael
+     DOCKERHUB_TOKEN  = (Access Token de hub.docker.com)
 
-   El script construye las 3 imágenes en paralelo para ambas
-   arquitecturas y las sube a Docker Hub con dos tags:
-     - jeffoisrael/opsguard-app:v1.0.0   (versión fija)
-     - jeffoisrael/opsguard-app:latest    (siempre la más nueva)
+   Para crear el token en Docker Hub:
+     hub.docker.com → Account Settings → Personal access tokens
+     → Generate new token → Read & Write
 
  ESTRATEGIA DE VERSIONES:
  -------------------------------------------------------
@@ -61,27 +84,6 @@
    v1.0.1 → corrección de bug sin cambios de estructura
    v1.1.0 → nueva funcionalidad sin romper compatibilidad
    v2.0.0 → cambio mayor (nueva BD, nueva API, etc.)
-
-   Regla: cuando subas versión en build.sh, actualiza también
-   el docker-compose.yml si quieres que los clientes usen
-   una versión fija en lugar de "latest".
-
- EN WINDOWS (sin bash):
- -------------------------------------------------------
-
-   Ejecuta los comandos manualmente:
-
-   docker buildx build --platform linux/amd64,linux/arm64 ^
-     -t jeffoisrael/opsguard-app:v1.0.0 ^
-     -t jeffoisrael/opsguard-app:latest --push .
-
-   docker buildx build --platform linux/amd64,linux/arm64 ^
-     -t jeffoisrael/opsguard-db:v1.0.0 ^
-     -t jeffoisrael/opsguard-db:latest --push ./database
-
-   docker buildx build --platform linux/amd64,linux/arm64 ^
-     -t jeffoisrael/opsguard-proxy:v1.0.0 ^
-     -t jeffoisrael/opsguard-proxy:latest --push ./nginx
 
 
 ==============================================================
@@ -201,11 +203,32 @@
 
   Todos los servicios deben aparecer en estado "healthy" o "Up".
 
+  ⚠  SI EL PUERTO 80 YA ESTÁ EN USO:
+
+  Algunos servidores ya tienen otro servicio usando el puerto 80
+  (por ejemplo n8n, Apache, otro nginx, etc.). En ese caso el
+  contenedor opsguard-nginx fallará al iniciar.
+
+  Solución — editar docker-compose.yml y cambiar el puerto:
+
+    ports:
+      - "8080:80"    ← cambia 80 por cualquier puerto libre
+
+  Puertos recomendados: 8080, 8081, 8888
+  Luego accedes por: http://IP-DEL-SERVIDOR:8080
+
+  Para verificar qué puertos están ocupados en el servidor:
+    sudo ss -tlnp | grep LISTEN
+
 --------------------------------------------------------------
  PASO 5 — Abrir el panel en el navegador
 --------------------------------------------------------------
 
-  http://IP-DE-TU-SERVIDOR
+  Si usas puerto 80 (sin conflicto):
+    http://IP-DE-TU-SERVIDOR
+
+  Si cambiaste el puerto (ej: 8080):
+    http://IP-DE-TU-SERVIDOR:8080
 
   Usuario:    admin
   Contraseña: admin123
@@ -334,7 +357,7 @@
 ==============================================================
 
   docker exec opsguard-postgres psql -U opsguard -d opsguard -c \
-  "UPDATE users SET password='\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewYpR7jSh1G3.Ry' WHERE username='admin';"
+  "UPDATE users SET password='\$2b\$12\$yj9qxFid2GZjgAI1FDSr0.Ji6SqsbK4qrmiGlSVJkU1wBdS54BqAO' WHERE username='admin';"
 
   Entra con admin / admin123 y cambia la contraseña.
 

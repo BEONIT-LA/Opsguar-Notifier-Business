@@ -49,11 +49,15 @@ services:
     container_name: opsguard-app
     restart: unless-stopped
     environment:
-      NODE_ENV:     production
-      REDIS_URL:    redis://redis:6379
-      DATABASE_URL: postgresql://opsguard:${POSTGRES_PASS:-opsguard2024}@postgres:5432/opsguard
-      JWT_SECRET:   ${JWT_SECRET:-cambia_esto_por_una_clave_segura}
-      JWT_EXPIRES:  8h
+      NODE_ENV:      production
+      REDIS_URL:     redis://redis:6379
+      DATABASE_URL:  postgresql://opsguard:${POSTGRES_PASS:-opsguard2024}@postgres:5432/opsguard
+      POSTGRES_HOST: postgres
+      POSTGRES_DB:   opsguard
+      POSTGRES_USER: opsguard
+      POSTGRES_PASS: ${POSTGRES_PASS:-opsguard2024}
+      JWT_SECRET:    ${JWT_SECRET:-cambia_esto_por_una_clave_segura}
+      JWT_EXPIRES:   8h
     volumes:
       - sessions_data:/app/auth_sessions
     depends_on:
@@ -74,8 +78,7 @@ services:
     container_name: opsguard-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
     depends_on:
       app:
         condition: service_healthy
