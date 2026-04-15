@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: jeffoisrael/opsguard-app:latest
+          image: jeffoisrael/opsguardchannel-app:latest
           env:
             - name: NODE_ENV
               value: production

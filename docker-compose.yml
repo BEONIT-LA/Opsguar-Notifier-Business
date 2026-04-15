@@ -16,7 +16,7 @@ services:
 
   # Base de datos — imagen con migraciones incluidas
   postgres:
-    image: jeffoisrael/opsguard-db:latest
+    image: jeffoisrael/opsguardchannel-db:latest
     container_name: opsguard-postgres
     restart: unless-stopped
     environment:
@@ -47,7 +47,7 @@ services:
 
   # Aplicación principal — Node.js + Vue compilado
   app:
-    image: jeffoisrael/opsguard-app:latest
+    image: jeffoisrael/opsguardchannel-app:latest
     container_name: opsguard-app
     restart: unless-stopped
     environment:
@@ -72,7 +72,7 @@ services:
 
   # Proxy — nginx con configuración incluida
   nginx:
-    image: jeffoisrael/opsguard-proxy:latest
+    image: jeffoisrael/opsguardchannel-proxy:latest
     container_name: opsguard-nginx
     restart: unless-stopped
     ports:

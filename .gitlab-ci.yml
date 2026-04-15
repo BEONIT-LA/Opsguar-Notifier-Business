@@ -17,6 +17,7 @@ stages:
 
 variables:
   REGISTRY: jeffoisrael
+  APP_NAME: opsguardchannel
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
 
@@ -65,9 +66,9 @@ build-app:
     - |
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
-        --tag "${REGISTRY}/opsguard-app:v${VERSION}" \
-        --tag "${REGISTRY}/opsguard-app:latest" \
-        --cache-from "type=registry,ref=${REGISTRY}/opsguard-app:latest" \
+        --tag "${REGISTRY}/${APP_NAME}-app:v${VERSION}" \
+        --tag "${REGISTRY}/${APP_NAME}-app:latest" \
+        --cache-from "type=registry,ref=${REGISTRY}/${APP_NAME}-app:latest" \
         --cache-to   "type=inline" \
         --push \
         .
@@ -79,9 +80,9 @@ build-db:
     - |
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
-        --tag "${REGISTRY}/opsguard-db:v${VERSION}" \
-        --tag "${REGISTRY}/opsguard-db:latest" \
-        --cache-from "type=registry,ref=${REGISTRY}/opsguard-db:latest" \
+        --tag "${REGISTRY}/${APP_NAME}-db:v${VERSION}" \
+        --tag "${REGISTRY}/${APP_NAME}-db:latest" \
+        --cache-from "type=registry,ref=${REGISTRY}/${APP_NAME}-db:latest" \
         --cache-to   "type=inline" \
         --push \
         ./database
@@ -93,9 +94,9 @@ build-proxy:
     - |
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
-        --tag "${REGISTRY}/opsguard-proxy:v${VERSION}" \
-        --tag "${REGISTRY}/opsguard-proxy:latest" \
-        --cache-from "type=registry,ref=${REGISTRY}/opsguard-proxy:latest" \
+        --tag "${REGISTRY}/${APP_NAME}-proxy:v${VERSION}" \
+        --tag "${REGISTRY}/${APP_NAME}-proxy:latest" \
+        --cache-from "type=registry,ref=${REGISTRY}/${APP_NAME}-proxy:latest" \
         --cache-to   "type=inline" \
         --push \
         ./nginx
