@@ -127,29 +127,82 @@
    En ambos casos → NUNCA subir estos valores al repositorio
 
 ==============================================================
- PARA EL CLIENTE — Instalar el sistema
+ PARA EL CLIENTE — Despliegue en producción (servidor)
 ==============================================================
 
- REQUISITO: Tener Docker instalado.
-            https://docs.docker.com/engine/install/
+ REQUISITOS:
+   - Servidor Linux (Ubuntu 22.04 recomendado)
+   - Docker instalado: https://docs.docker.com/engine/install/
+   - Mínimo 2 GB de RAM
 
 --------------------------------------------------------------
- PASO 1 — Abre docker-compose.yml y cambia estas 2 líneas:
+ PASO 1 — Crear la carpeta del proyecto en el servidor
 --------------------------------------------------------------
 
-  POSTGRES_PASS: ← pon una contraseña para la base de datos
-  JWT_SECRET:    ← pon cualquier texto largo y secreto
+  mkdir ~/notificaciones && cd ~/notificaciones
 
 --------------------------------------------------------------
- PASO 2 — Levanta el sistema
+ PASO 2 — Copiar el docker-compose.yml al servidor
+--------------------------------------------------------------
+
+  Desde tu máquina local ejecuta:
+
+    scp docker-compose.yml usuario@IP-SERVIDOR:~/notificaciones/
+
+  El archivo docker-compose.yml se copia exactamente como está.
+  NO es necesario modificarlo — las imágenes ya están en Docker Hub
+  y todos los valores internos (puertos, rutas, servicios) ya
+  están configurados correctamente.
+
+--------------------------------------------------------------
+ PASO 3 — Crear el archivo .env en el servidor
+--------------------------------------------------------------
+
+  cd ~/notificaciones
+  nano .env
+
+  Escribe ÚNICAMENTE estas dos líneas:
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ POSTGRES_PASS=una-password-segura                       │
+  │ JWT_SECRET=una-clave-larga-y-aleatoria                  │
+  └─────────────────────────────────────────────────────────┘
+
+  Guarda con: Ctrl + X → Y → Enter
+
+  ⚠  IMPORTANTE — ¿Por qué solo 2 variables?
+
+  En desarrollo local el archivo .env tiene muchas variables
+  (REDIS_URL, DATABASE_URL, PORT, NODE_ENV, etc.) porque Node.js
+  corre directamente en la máquina y necesita saber dónde
+  conectarse a cada servicio.
+
+  En producción con Docker, el docker-compose.yml ya define
+  todas esas variables internamente (NODE_ENV=production,
+  REDIS_URL=redis://redis:6379, etc.). Solo delega al .env
+  los dos valores secretos que cambian por instalación:
+  la contraseña de la base de datos y la clave JWT.
+
+  Tip para generar un JWT_SECRET seguro:
+    openssl rand -hex 32
+
+--------------------------------------------------------------
+ PASO 4 — Levantar el sistema
 --------------------------------------------------------------
 
   docker compose up -d
 
-  La primera vez descarga las imágenes, puede tardar unos minutos.
+  La primera vez descarga las imágenes desde Docker Hub,
+  puede tardar unos minutos dependiendo del internet.
+
+  Verificar que todo esté corriendo:
+
+    docker compose ps
+
+  Todos los servicios deben aparecer en estado "healthy" o "Up".
 
 --------------------------------------------------------------
- PASO 3 — Abre el panel en tu navegador
+ PASO 5 — Abrir el panel en el navegador
 --------------------------------------------------------------
 
   http://IP-DE-TU-SERVIDOR
@@ -158,7 +211,7 @@
   Contraseña: admin123
 
 --------------------------------------------------------------
- PASO 4 — Cambia la contraseña (IMPORTANTE)
+ PASO 6 — Cambiar la contraseña (IMPORTANTE)
 --------------------------------------------------------------
 
   Dentro del panel → clic en tu nombre arriba a la derecha
