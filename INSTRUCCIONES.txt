@@ -242,6 +242,78 @@
 
 
 ==============================================================
+ SSL — Activar HTTPS en el servidor
+==============================================================
+
+ El sistema soporta dos modos de instalación:
+
+ ┌─────────────────────────────────────────────────────────┐
+ │  SIN SSL → solo necesitas 2 archivos en el servidor     │
+ │  CON SSL → necesitas 4 archivos + carpeta ssl           │
+ └─────────────────────────────────────────────────────────┘
+
+ ── MODO SIN SSL (HTTP en puerto 8080) ───────────────────────
+
+   Estructura en el servidor:
+
+     ~/notificaciones/
+         ├── docker-compose.yml
+         └── .env
+
+   Acceso: http://IP-DEL-SERVIDOR:8080
+
+   Pasos:
+     mkdir ~/notificaciones && cd ~/notificaciones
+     scp docker-compose.yml usuario@IP:~/notificaciones/
+     nano .env   ← agrega POSTGRES_PASS y JWT_SECRET
+     docker compose up -d
+
+ ── MODO CON SSL (HTTPS en puerto 8443) ──────────────────────
+
+   Estructura en el servidor:
+
+     ~/notificaciones/
+         ├── docker-compose.yml
+         ├── .env
+         ├── nginx.conf          ← sobrescribe config de la imagen
+         └── ssl/
+             ├── cert.pem        ← tu certificado (fullchain.crt)
+             └── key.pem         ← tu llave privada
+
+   Acceso: https://tu-dominio.com:8443
+
+   ¿Por qué server_name _; en nginx.conf?
+   El guión bajo es un comodín que acepta CUALQUIER dominio.
+   No necesitas editar el archivo por cliente — funciona con
+   cualquier dominio que apunte al servidor.
+
+   Pasos:
+     mkdir ~/notificaciones && cd ~/notificaciones
+
+     # 1. Copiar archivos desde tu máquina
+     scp docker-compose.yml nginx.conf usuario@IP:~/notificaciones/
+
+     # 2. Crear .env
+     nano .env   ← agrega POSTGRES_PASS y JWT_SECRET
+
+     # 3. Crear carpeta ssl y copiar certificados
+     mkdir ssl
+     cp /ruta/fullchain.crt  ~/notificaciones/ssl/cert.pem
+     cp /ruta/dominio.key    ~/notificaciones/ssl/key.pem
+
+     # 4. Levantar
+     docker compose up -d
+
+   ⚠  Los certificados NO van al repositorio.
+   La carpeta nginx/ssl/ está en .gitignore.
+   Nunca subas cert.pem ni key.pem al repo.
+
+ ── SI EL PUERTO 8443 YA ESTÁ OCUPADO ────────────────────────
+
+   Cambia 8443 por cualquier puerto libre (ej: 9443, 8444).
+   El certificado SSL funciona en cualquier puerto.
+
+==============================================================
  TESTS AUTOMATIZADOS
 ==============================================================
 
