@@ -1,290 +1,295 @@
-╔══════════════════════════════════════════════════════════════╗
-║           OpsGuard WhatsApp — Instrucciones                          ║
-╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════╗
+║            OpsGuard WhatsApp — Base de Conocimiento             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  SECCIONES:
+    1. PARA EL CLIENTE        → instalación en servidor
+    2. PARA EL DESARROLLADOR  → CI/CD, imágenes, versiones
+    3. REFERENCIA TÉCNICA     → arquitectura, tests, comandos
 
 
-==============================================================
- ⚠  PUNTO CRÍTICO — RÉPLICAS EN KUBERNETES / DOCKER SWARM
-==============================================================
-
- El servicio "app" SIEMPRE debe correr con UNA SOLA instancia.
- NO se puede escalar a 2 o más réplicas.
-
- ¿Por qué?
-   WhatsApp solo permite que un número esté conectado desde
-   un lugar a la vez. Si corren 2 pods con la misma sesión,
-   WhatsApp desconecta ambos y las sesiones se caen.
-
-   Es el mismo comportamiento de WhatsApp Web: si abres la
-   sesión en otro navegador, el anterior se desconecta.
-
- En Kubernetes (04-app.yaml):
-   replicas: 1   ← NUNCA cambiar este valor
-
- En Docker Swarm:
-   deploy:
-     replicas: 1  ← NUNCA cambiar este valor
-
- Los demás servicios (postgres, redis) sí pueden tener
- configuraciones de alta disponibilidad sin problema.
-
-
-==============================================================
- PARA EL DESARROLLADOR — Crear y publicar imágenes
-==============================================================
-
- ARQUITECTURAS SOPORTADAS: linux/amd64 (x86) + linux/arm64 (ARM)
- Esto permite que el sistema corra en cualquier servidor:
- VPS estándar, AWS Graviton, Oracle Cloud ARM, etc.
-
- PRIMERA VEZ — configurar buildx (solo una vez):
- -------------------------------------------------------
-
-   docker buildx create --name multiarch --use
-   docker login   ← ingresa usuario y contraseña de Docker Hub
-
- PUBLICAR UNA NUEVA VERSIÓN (script automático):
- -------------------------------------------------------
-
-   chmod +x build.sh        ← solo la primera vez
-   ./build.sh 1.0.0         ← construye y sube v1.0.0
-
-   El script construye las 3 imágenes en paralelo para ambas
-   arquitecturas y las sube a Docker Hub con dos tags:
-     - jeffoisrael/opsguard-app:v1.0.0   (versión fija)
-     - jeffoisrael/opsguard-app:latest    (siempre la más nueva)
-
- ESTRATEGIA DE VERSIONES:
- -------------------------------------------------------
-
-   v1.0.0 → primera versión estable
-   v1.0.1 → corrección de bug sin cambios de estructura
-   v1.1.0 → nueva funcionalidad sin romper compatibilidad
-   v2.0.0 → cambio mayor (nueva BD, nueva API, etc.)
-
-   Regla: cuando subas versión en build.sh, actualiza también
-   el docker-compose.yml si quieres que los clientes usen
-   una versión fija en lugar de "latest".
-
- EN WINDOWS (sin bash):
- -------------------------------------------------------
-
-   Ejecuta los comandos manualmente:
-
-   docker buildx build --platform linux/amd64,linux/arm64 ^
-     -t jeffoisrael/opsguard-app:v1.0.0 ^
-     -t jeffoisrael/opsguard-app:latest --push .
-
-   docker buildx build --platform linux/amd64,linux/arm64 ^
-     -t jeffoisrael/opsguard-db:v1.0.0 ^
-     -t jeffoisrael/opsguard-db:latest --push ./database
-
-   docker buildx build --platform linux/amd64,linux/arm64 ^
-     -t jeffoisrael/opsguard-proxy:v1.0.0 ^
-     -t jeffoisrael/opsguard-proxy:latest --push ./nginx
-
-
-==============================================================
- VARIABLES DE ENTORNO — Dónde y cómo configurarlas
-==============================================================
-
- Las variables de entorno son los valores secretos del sistema
- (contraseñas, claves). Dependiendo de la plataforma se
- configuran de forma diferente:
-
- ── DOCKER COMPOSE (VPS / EC2 / servidor propio) ─────────────
-
-   Se crea un archivo llamado ".env" en la misma carpeta
-   donde está el docker-compose.yml.
-
-   Formato del archivo .env:
-   ┌─────────────────────────────────────────┐
-   │ POSTGRES_PASS=mi-password-seguro        │
-   │ JWT_SECRET=una-clave-larga-y-aleatoria  │
-   └─────────────────────────────────────────┘
-
-   Docker Compose lo lee automáticamente al hacer:
-     docker compose up -d
-
-   Tip para generar un JWT_SECRET seguro:
-     openssl rand -hex 32
-
- ── KUBERNETES ────────────────────────────────────────────────
-
-   No existe archivo .env. Las variables van en el archivo
-   kubernetes/01-secrets.yaml como valores en base64.
-
-   Para convertir un valor a base64:
-     echo -n "mi-password-seguro" | base64
-
-   Luego se pega el resultado en el secrets.yaml y se aplica:
-     kubectl apply -f kubernetes/01-secrets.yaml
-
- ── RESUMEN ───────────────────────────────────────────────────
-
-   Docker Compose → archivo .env en el servidor
-   Kubernetes     → 01-secrets.yaml en el cluster
-   En ambos casos → NUNCA subir estos valores al repositorio
-
-==============================================================
- PARA EL CLIENTE — Despliegue en producción (servidor)
-==============================================================
+╔══════════════════════════════════════════════════════════════════╗
+║  1. PARA EL CLIENTE — Instalación en servidor                   ║
+╚══════════════════════════════════════════════════════════════════╝
 
  REQUISITOS:
    - Servidor Linux (Ubuntu 22.04 recomendado)
    - Docker instalado: https://docs.docker.com/engine/install/
    - Mínimo 2 GB de RAM
 
---------------------------------------------------------------
- PASO 1 — Crear la carpeta del proyecto en el servidor
---------------------------------------------------------------
 
-  mkdir ~/notificaciones && cd ~/notificaciones
+==============================================================
+ OPCIÓN A — Instalación SIN SSL (HTTP)
+==============================================================
 
---------------------------------------------------------------
- PASO 2 — Copiar el docker-compose.yml al servidor
---------------------------------------------------------------
+ Estructura de archivos en el servidor:
 
-  Desde tu máquina local ejecuta:
+   ~/notificaciones/
+       ├── docker-compose.yml   ← recibes este archivo
+       └── .env                 ← lo creas tú en el servidor
 
-    scp docker-compose.yml usuario@IP-SERVIDOR:~/notificaciones/
+ Acceso: http://IP-DEL-SERVIDOR:8080
 
-  El archivo docker-compose.yml se copia exactamente como está.
-  NO es necesario modificarlo — las imágenes ya están en Docker Hub
-  y todos los valores internos (puertos, rutas, servicios) ya
-  están configurados correctamente.
+ PASO 1 — Crear carpeta y copiar el compose:
 
---------------------------------------------------------------
- PASO 3 — Crear el archivo .env en el servidor
---------------------------------------------------------------
+   mkdir ~/notificaciones
+   # Desde tu máquina local:
+   scp docker-compose.yml usuario@IP-SERVIDOR:~/notificaciones/
 
-  cd ~/notificaciones
-  nano .env
+ PASO 2 — Crear el archivo .env en el servidor:
 
-  Escribe ÚNICAMENTE estas dos líneas:
+   cd ~/notificaciones
+   nano .env
 
-  ┌─────────────────────────────────────────────────────────┐
-  │ POSTGRES_PASS=una-password-segura                       │
-  │ JWT_SECRET=una-clave-larga-y-aleatoria                  │
-  └─────────────────────────────────────────────────────────┘
+   Escribe ÚNICAMENTE esto:
+   ┌─────────────────────────────────────────────────────────┐
+   │ POSTGRES_PASS=una-password-segura                       │
+   │ JWT_SECRET=una-clave-larga-y-aleatoria                  │
+   └─────────────────────────────────────────────────────────┘
 
-  Guarda con: Ctrl + X → Y → Enter
+   Guarda con: Ctrl + X → Y → Enter
 
-  ⚠  IMPORTANTE — ¿Por qué solo 2 variables?
+   Tip para generar JWT_SECRET seguro:
+     openssl rand -hex 32
 
-  En desarrollo local el archivo .env tiene muchas variables
-  (REDIS_URL, DATABASE_URL, PORT, NODE_ENV, etc.) porque Node.js
-  corre directamente en la máquina y necesita saber dónde
-  conectarse a cada servicio.
+ PASO 3 — Levantar el sistema:
 
-  En producción con Docker, el docker-compose.yml ya define
-  todas esas variables internamente (NODE_ENV=production,
-  REDIS_URL=redis://redis:6379, etc.). Solo delega al .env
-  los dos valores secretos que cambian por instalación:
-  la contraseña de la base de datos y la clave JWT.
+   docker compose up -d
 
-  Tip para generar un JWT_SECRET seguro:
-    openssl rand -hex 32
+   La primera vez descarga las imágenes de Docker Hub.
+   Puede tardar unos minutos según el internet.
 
---------------------------------------------------------------
- PASO 4 — Levantar el sistema
---------------------------------------------------------------
+ PASO 4 — Verificar que todo corre:
 
-  docker compose up -d
+   docker compose ps
+   # Todos deben aparecer como "healthy" o "Up"
 
-  La primera vez descarga las imágenes desde Docker Hub,
-  puede tardar unos minutos dependiendo del internet.
+ PASO 5 — Acceder al panel:
 
-  Verificar que todo esté corriendo:
+   http://IP-DEL-SERVIDOR:8080
+   Usuario:    admin
+   Contraseña: admin123
 
-    docker compose ps
+ PASO 6 — Cambiar contraseña (IMPORTANTE):
 
-  Todos los servicios deben aparecer en estado "healthy" o "Up".
-
---------------------------------------------------------------
- PASO 5 — Abrir el panel en el navegador
---------------------------------------------------------------
-
-  http://IP-DE-TU-SERVIDOR
-
-  Usuario:    admin
-  Contraseña: admin123
-
---------------------------------------------------------------
- PASO 6 — Cambiar la contraseña (IMPORTANTE)
---------------------------------------------------------------
-
-  Dentro del panel → clic en tu nombre arriba a la derecha
-  → "Cambiar contraseña"
+   Panel → clic en tu nombre arriba → "Cambiar contraseña"
 
 
 ==============================================================
- TESTS AUTOMATIZADOS
+ OPCIÓN B — Instalación CON SSL (HTTPS)
 ==============================================================
 
- REQUISITO: Node.js instalado localmente (no necesita Docker).
+ Estructura de archivos en el servidor:
 
- EJECUTAR TODOS LOS TESTS:
+   ~/notificaciones/
+       ├── docker-compose.yml   ← recibes este archivo
+       ├── .env                 ← lo creas tú en el servidor
+       ├── nginx.conf           ← recibes este archivo
+       └── ssl/
+           ├── cert.pem         ← tu certificado SSL
+           └── key.pem          ← tu llave privada SSL
 
-   npm test
+ Acceso: https://tu-dominio.com:8443
 
- EJECUTAR EN MODO WATCH (re-ejecuta al guardar cambios):
+ PASO 1 — Crear carpeta y copiar archivos:
 
-   npm run test:watch
+   mkdir ~/notificaciones
+   # Desde tu máquina local:
+   scp docker-compose.yml nginx.conf usuario@IP-SERVIDOR:~/notificaciones/
 
- SUITES INCLUIDAS:
+ PASO 2 — Crear el archivo .env en el servidor:
 
-   tests/auth.test.js       — Login, cambio de contraseña
-   tests/security.test.js   — Protección JWT en todas las rutas
-   tests/validation.test.js — Validación de inputs en POST /send
-   tests/health.test.js     — Health check, status, queue stats
+   cd ~/notificaciones
+   nano .env
 
- CASOS QUE CUBRE CADA SUITE:
+   Escribe ÚNICAMENTE esto:
+   ┌─────────────────────────────────────────────────────────┐
+   │ POSTGRES_PASS=una-password-segura                       │
+   │ JWT_SECRET=una-clave-larga-y-aleatoria                  │
+   └─────────────────────────────────────────────────────────┘
 
-   auth.test.js (8 tests)
-   ├── ✅ Login correcto devuelve token JWT
-   ├── ❌ Contraseña incorrecta devuelve 401
-   ├── ❌ Usuario no existe devuelve 401
-   ├── ❌ Faltan campos devuelve 400
-   ├── ✅ Cambio de contraseña correcto
-   ├── ❌ Contraseña actual incorrecta devuelve 401
-   ├── ❌ Nueva contraseña muy corta devuelve 400
-   └── ❌ Sin token devuelve 401
+ PASO 3 — Copiar certificados SSL:
 
-   security.test.js (14 tests)
-   ├── ❌ Cada ruta protegida sin token → 401
-   ├── ❌ Cada ruta con token expirado → 401
-   ├── ❌ Cada ruta con secret incorrecto → 401
-   ├── ❌ Token mal formado → 401
-   ├── ❌ Header sin "Bearer" → 401
-   └── ✅ Token válido pasa la autenticación
+   mkdir ssl
+   cp /ruta/a/tu/fullchain.crt  ~/notificaciones/ssl/cert.pem
+   cp /ruta/a/tu/dominio.key    ~/notificaciones/ssl/key.pem
 
-   validation.test.js (6 tests)
-   ├── ❌ Sin groupId devuelve 400
-   ├── ❌ Sin contenido devuelve 400
-   ├── ✅ JSON con texto devuelve 202 y jobId
-   ├── ✅ multipart con texto devuelve 202
-   ├── ✅ multipart con imagen PNG devuelve 202
-   └── ❌ Sin token devuelve 401
+   ⚠  Los certificados NUNCA van al repositorio Git.
+      Solo existen en el servidor.
 
-   health.test.js (7 tests)
-   ├── ✅ Health devuelve status y uptime > 0
-   ├── ✅ Status devuelve totalSessions y readySessions
-   ├── ✅ readySessions siempre <= totalSessions
-   ├── ✅ Queue stats devuelve todos los campos
-   └── ✅ Todos los valores numéricos son >= 0
+ PASO 4 — Levantar el sistema:
 
- NOTA: Los tests usan mocks — no requieren WhatsApp, Redis
- ni PostgreSQL activos. Se pueden ejecutar en cualquier momento
- sin afectar el servidor en producción.
+   docker compose up -d
+
+ PASO 5 — Acceder al panel:
+
+   https://tu-dominio.com:8443
+   Usuario:    admin
+   Contraseña: admin123
+
+ PASO 6 — Cambiar contraseña (IMPORTANTE):
+
+   Panel → clic en tu nombre arriba → "Cambiar contraseña"
+
+ NOTAS SOBRE SSL:
+   - El nginx.conf usa server_name _; (acepta cualquier dominio)
+     No necesitas editarlo por cliente.
+   - Si el puerto 8443 ya está ocupado, cámbialo por 9443 u otro.
+   - Para verificar puertos ocupados: sudo ss -tlnp | grep LISTEN
+
 
 ==============================================================
- CÓMO FUNCIONA EL ENVÍO EN PARALELO (referencia técnica)
+ PROBLEMA: Puerto 80 o 443 ya está en uso
 ==============================================================
 
- El sistema usa BullMQ como cola de mensajes. La concurrencia
- del worker se ajusta automáticamente al número de sesiones
- WhatsApp que estén listas (conectadas y autenticadas).
+ Si el servidor tiene otro servicio (n8n, Apache, etc.) usando
+ el puerto 80 o 443, el contenedor nginx fallará al iniciar.
+
+ Solución — editar docker-compose.yml en el servidor:
+
+   # SIN SSL — cambia el puerto:
+   ports:
+     - "8080:80"    ← puedes usar 8080, 8081, 8888
+
+   # CON SSL — cambia el puerto:
+   ports:
+     - "8080:80"
+     - "8443:443"   ← puedes usar 8443, 9443, 8444
+
+ Luego: docker compose up -d --no-deps nginx
+
+
+╔══════════════════════════════════════════════════════════════════╗
+║  2. PARA EL DESARROLLADOR — CI/CD e imágenes Docker            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+==============================================================
+ IMÁGENES EN DOCKER HUB
+==============================================================
+
+ Repositorio: hub.docker.com/u/jeffoisrael
+ Visibilidad: Públicas
+
+   jeffoisrael/opsguardchannel-app    → Node.js + Vue compilado
+   jeffoisrael/opsguardchannel-db     → PostgreSQL + migraciones
+   jeffoisrael/opsguardchannel-proxy  → Nginx reverse proxy
+
+ ARQUITECTURAS: linux/amd64 (x86) + linux/arm64 (ARM)
+ Compatibles con: VPS estándar, AWS Graviton, Oracle ARM, etc.
+
+
+==============================================================
+ FLUJO DE TRABAJO — GitLab CI/CD
+==============================================================
+
+ El archivo .gitlab-ci.yml automatiza todo:
+
+ ── PUSH a cualquier rama ─────────────────────────────────────
+   → Corre los 35 tests automáticamente en servidores de GitLab
+   → Si falla algún test → notificación por email
+   → Tú no haces nada, GitLab lo corre solo
+
+ ── GIT TAG (ej: v1.0.4) ──────────────────────────────────────
+   → Construye las 3 imágenes Docker en paralelo
+   → Sube a Docker Hub con tag vX.X.X y latest
+   → Build multi-arch (amd64 + arm64) automático
+
+ DÍA A DÍA:
+ -------------------------------------------------------
+
+   # 1. Trabajas en develop normalmente
+   git add .
+   git commit -m "descripción del cambio"
+   git push origin develop        ← tests corren automático
+
+   # 2. Cuando está listo para producción
+   #    → En GitLab: merge develop → main
+   #    → Luego crear el tag:
+   git tag v1.0.4
+   git push origin v1.0.4         ← build automático en GitLab
+
+   Ver el pipeline: GitLab → Build → Pipelines
+
+ VARIABLES EN GITLAB (configurar solo una vez):
+ -------------------------------------------------------
+
+   GitLab → Settings → CI/CD → Variables:
+
+   ┌──────────────────┬───────────────────────────────────┐
+   │ DOCKERHUB_USER   │ jeffoisrael                       │
+   │ DOCKERHUB_TOKEN  │ Access Token de hub.docker.com    │
+   └──────────────────┴───────────────────────────────────┘
+
+   Crear token: hub.docker.com → Account Settings
+                → Personal access tokens → Read & Write
+
+
+==============================================================
+ ESTRATEGIA DE VERSIONES
+==============================================================
+
+   v1.0.0 → primera versión estable
+   v1.0.1 → corrección de bug (sin cambios de estructura)
+   v1.1.0 → nueva funcionalidad (compatible con versión anterior)
+   v2.0.0 → cambio mayor (nueva BD, nueva API, breaking change)
+
+
+==============================================================
+ VARIABLES DE ENTORNO — Local vs Producción
+==============================================================
+
+ ¿Por qué en producción solo hay 2 variables y local tiene más?
+
+ LOCAL (.env con muchas variables):
+   Node.js corre directo en la máquina y necesita saber dónde
+   conectarse a cada servicio (Redis, PostgreSQL, etc.)
+
+ PRODUCCIÓN (.env con solo 2 variables):
+   Docker Compose ya define todas las variables internamente.
+   Solo delega al .env los valores secretos que cambian
+   por instalación: contraseña de BD y clave JWT.
+
+ Variables que maneja docker-compose.yml automáticamente:
+   NODE_ENV, REDIS_URL, DATABASE_URL, POSTGRES_HOST,
+   POSTGRES_DB, POSTGRES_USER, JWT_EXPIRES
+
+ Variables que debes poner en .env del servidor:
+   POSTGRES_PASS  → contraseña de la base de datos
+   JWT_SECRET     → clave de cifrado para tokens JWT
+
+
+╔══════════════════════════════════════════════════════════════════╗
+║  3. REFERENCIA TÉCNICA                                          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+==============================================================
+ ⚠  CRÍTICO — RÉPLICAS (NUNCA escalar la app)
+==============================================================
+
+ El servicio "app" SIEMPRE debe correr con UNA SOLA instancia.
+
+ ¿Por qué?
+   WhatsApp solo permite una conexión activa por número.
+   Si corren 2 instancias con la misma sesión, WhatsApp
+   desconecta ambas. Es igual que abrir WhatsApp Web en
+   dos navegadores — el primero se desconecta.
+
+ En Kubernetes (04-app.yaml):
+   replicas: 1   ← NUNCA cambiar
+
+ En Docker Swarm:
+   deploy:
+     replicas: 1  ← NUNCA cambiar
+
+ Los demás servicios (postgres, redis) sí pueden escalar.
+
+
+==============================================================
+ CÓMO FUNCIONA EL ENVÍO EN PARALELO
+==============================================================
+
+ BullMQ maneja la cola. La concurrencia = número de sesiones
+ WhatsApp conectadas.
 
  EJEMPLO CON 2 SESIONES (Anahi y Vero):
 
@@ -292,41 +297,85 @@
            Vero   → envía job 2 ┘  (al mismo tiempo)
 
    t=3-6s  Anahi  → espera delay ┐
-           Vero   → espera delay ┘  (cada una su propio delay)
+           Vero   → espera delay ┘  (cada una su ritmo)
 
    t=6-12s Anahi  → envía job 3 ┐
-           Vero   → envía job 4 ┘  (al mismo tiempo de nuevo)
+           Vero   → envía job 4 ┘  (al mismo tiempo)
 
-   Dos carriles paralelos independientes. Cada sesión tiene su
-   propio ritmo de 3–6 s entre envíos, no se esperan entre sí.
+ REGLA: 1 sesión = 1 carril paralelo
+   1 sesión  → 1 mensaje a la vez
+   2 sesiones → 2 mensajes simultáneos
+   5 sesiones → 5 mensajes simultáneos
 
- REGLA: sesiones = carriles paralelos
-   1 sesión  → 1 mensaje a la vez, secuencial
-   2 sesiones → 2 mensajes al mismo tiempo
-   5 sesiones → 5 mensajes al mismo tiempo
+ RATE LIMIT:
+   El delay de 3–6 s entre envíos evita bloqueos de WhatsApp.
+   Si ocurre rate limit → reintenta automáticamente hasta 5
+   veces con backoff exponencial (15s → 30s → 60s...).
 
- SOBRE EL RATE LIMIT DE WHATSAPP:
-   WhatsApp puede bloquear temporalmente un número si detecta
-   que envía mensajes muy rápido (ráfaga). El delay de 3–6 s
-   entre cada envío existe precisamente para evitar esto.
-   Si ocurre un rate limit, el sistema reintenta automáticamente
-   hasta 5 veces con backoff exponencial (15s → 30s → 60s...).
-   Los jobs finalmente se completan sin intervención manual.
+ ORDEN ESTRICTO:
+   Si necesitas que los mensajes lleguen en orden exacto,
+   usa UNA sola sesión para ese grupo.
 
- POOLS Y ORDEN:
-   Si se necesita que los mensajes lleguen en orden estricto
-   a un grupo, configurar un pool con UNA sola sesión para ese
-   grupo. Con 1 sesión los jobs se procesan en secuencia exacta.
-   Con múltiples sesiones el orden puede variar levemente.
 
 ==============================================================
- COMANDOS ÚTILES
+ TESTS AUTOMATIZADOS
 ==============================================================
 
-  Ver estado:        docker compose ps
-  Ver logs:          docker compose logs -f app
-  Detener:           docker compose down
-  Actualizar:        docker compose pull && docker compose up -d
+ EJECUTAR (requiere Node.js local, sin Docker):
+
+   npm test              ← corre los 35 tests
+   npm run test:watch    ← modo watch al guardar cambios
+
+ SUITES:
+
+   auth.test.js (8 tests)
+   ├── ✅ Login correcto devuelve token JWT
+   ├── ❌ Contraseña incorrecta → 401
+   ├── ❌ Usuario no existe → 401
+   ├── ❌ Faltan campos → 400
+   ├── ✅ Cambio de contraseña correcto
+   ├── ❌ Contraseña actual incorrecta → 401
+   ├── ❌ Nueva contraseña muy corta → 400
+   └── ❌ Sin token → 401
+
+   security.test.js (14 tests)
+   ├── ❌ Rutas protegidas sin token → 401
+   ├── ❌ Token expirado → 401
+   ├── ❌ Secret incorrecto → 401
+   ├── ❌ Token mal formado → 401
+   ├── ❌ Header sin "Bearer" → 401
+   └── ✅ Token válido pasa
+
+   validation.test.js (6 tests)
+   ├── ❌ Sin groupId → 400
+   ├── ❌ Sin contenido → 400
+   ├── ✅ JSON con texto → 202
+   ├── ✅ multipart con texto → 202
+   ├── ✅ multipart con imagen → 202
+   └── ❌ Sin token → 401
+
+   health.test.js (7 tests)
+   ├── ✅ Health devuelve uptime > 0
+   ├── ✅ Status devuelve sesiones
+   ├── ✅ readySessions <= totalSessions
+   ├── ✅ Queue stats completo
+   └── ✅ Valores numéricos >= 0
+
+ NOTA: Los tests usan mocks — no requieren WhatsApp,
+ Redis ni PostgreSQL. Se pueden correr en cualquier momento.
+
+
+==============================================================
+ COMANDOS ÚTILES EN EL SERVIDOR
+==============================================================
+
+  Ver estado:          docker compose ps
+  Ver logs app:        docker compose logs -f app
+  Ver logs postgres:   docker compose logs postgres
+  Detener todo:        docker compose down
+  Actualizar imágenes: docker compose pull && docker compose up -d
+  Reiniciar solo nginx: docker compose up -d --no-deps nginx
+  Reiniciar solo app:   docker compose up -d --no-deps app
 
 
 ==============================================================
@@ -334,8 +383,8 @@
 ==============================================================
 
   docker exec opsguard-postgres psql -U opsguard -d opsguard -c \
-  "UPDATE users SET password='\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewYpR7jSh1G3.Ry' WHERE username='admin';"
+  "UPDATE users SET password='\$2b\$12\$yj9qxFid2GZjgAI1FDSr0.Ji6SqsbK4qrmiGlSVJkU1wBdS54BqAO' WHERE username='admin';"
 
-  Entra con admin / admin123 y cambia la contraseña.
+  Entra con: admin / admin123 → luego cambia la contraseña.
 
 ==============================================================
