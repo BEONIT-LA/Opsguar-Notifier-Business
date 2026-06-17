@@ -183,7 +183,7 @@ async function health(req, res) {
 
   let redisStatus = 'ok';
   try {
-    await messageQueue.client.ping();
+    await (await messageQueue.client).ping();
   } catch (_) {
     redisStatus = 'error';
   }
