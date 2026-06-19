@@ -5,7 +5,7 @@
       <img src="/brand/beonit-horizontal.png" alt="Be On It" class="logo-img" />
       <div class="logo-tenant">
         <div class="logo-tenant-label">Workspace</div>
-        <div class="logo-sub">{{ auth.tenant?.name || 'OpsGuard SaaS' }}</div>
+        <div class="logo-sub">{{ auth.tenant?.name || 'Opsguar-Notifier Business' }}</div>
       </div>
     </div>
 

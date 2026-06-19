@@ -12,7 +12,7 @@
       <!-- Marca Be On It (logo oficial apilado) -->
       <div class="login-brand">
         <img src="/brand/beonit-stacked.png" alt="Be On It" class="brand-logo" />
-        <div class="brand-sub">OpsGuard SaaS</div>
+        <div class="brand-sub">Opsguar-Notifier Business</div>
       </div>
 
       <h2 class="login-title">Iniciar sesión</h2>

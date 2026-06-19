@@ -5,7 +5,7 @@
       <div class="logo">
         <img src="/brand/beonit-horizontal.png" alt="Be On It" class="logo-img" />
         <div class="logo-tenant">
-          <div class="logo-tenant-label">OpsGuard SaaS</div>
+          <div class="logo-tenant-label">Opsguar-Notifier Business</div>
           <div class="logo-sub">Consola de plataforma</div>
         </div>
       </div>

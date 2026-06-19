@@ -1,7 +1,7 @@
 {
-  "name": "opsguard-saas",
+  "name": "opsguar-notifier-business",
   "version": "2.0.0",
-  "description": "OpsGuard SaaS — plataforma multiempresa de notificaciones WhatsApp (multi-tenant): el admin crea tenants con cuota/vigencia, cada responsable gestiona sus sesiones, grupos y tokens de API.",
+  "description": "Opsguar-Notifier Business — plataforma multiempresa de notificaciones WhatsApp (multi-tenant): el admin crea tenants con cuota/vigencia, cada responsable gestiona sus sesiones, grupos y tokens de API.",
   "main": "index.js",
   "scripts": {
     "dev": "node server.js",
