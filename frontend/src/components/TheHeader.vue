@@ -2,7 +2,7 @@
   <header class="header">
     <!-- Logo oficial Be On It (horizontal) -->
     <div class="logo">
-      <img src="/brand/beonit-horizontal.png" alt="Be On It" class="logo-img" />
+      <img src="/brand/beonit-horizontal-trim.png" alt="Be On It" class="logo-img" />
       <div class="logo-tenant">
         <div class="logo-tenant-label">Workspace</div>
         <div class="logo-sub">{{ auth.tenant?.name || 'Opsguar-Notifier Business' }}</div>
@@ -312,7 +312,7 @@ onUnmounted(() => {
 }
 
 .logo { display: flex; align-items: center; gap: 0.7rem; }
-.logo-img { height: 30px; width: auto; display: block; flex-shrink: 0; }
+.logo-img { height: 34px; width: auto; display: block; flex-shrink: 0; }
 .logo-tenant { display: flex; flex-direction: column; padding-left: 0.7rem; border-left: 1px solid var(--border); }
 .logo-tenant-label { font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
 .logo-sub  { font-size: 0.72rem; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }

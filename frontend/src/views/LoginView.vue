@@ -11,7 +11,7 @@
 
       <!-- Marca Be On It (logo oficial apilado) -->
       <div class="login-brand">
-        <img src="/brand/beonit-stacked.png" alt="Be On It" class="brand-logo" />
+        <img src="/brand/beonit-stacked-trim.png" alt="Be On It" class="brand-logo" />
         <div class="brand-sub">Opsguar-Notifier Business</div>
       </div>
 
