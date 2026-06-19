@@ -36,9 +36,14 @@ jest.mock('../src/services/queueService', () => ({
 jest.mock('../src/services/poolService', () => ({
   getPoolByGroupId: jest.fn().mockResolvedValue(null),
 }));
+jest.mock('../src/services/tenantService', () => ({
+  checkOperational: jest.fn().mockResolvedValue({ ok: true, tenant: { id: 1, name: 'Empresa A', max_sessions: 5, status: 'active' } }),
+  checkCanSend:     jest.fn().mockResolvedValue({ ok: true, tenant: { id: 1, name: 'Empresa A' } }),
+  incrementUsage:   jest.fn(),
+}));
 
 const app      = require('../app');
-const token    = jwt.sign({ userId: 1, user: 'admin', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+const token    = jwt.sign({ userId: 1, user: 'acme', role: 'manager', tenantId: 1 }, process.env.JWT_SECRET, { expiresIn: '1h' });
 const GROUP_ID = '120363000000000001@g.us';
 
 // Imagen PNG mínima válida de 1x1 px

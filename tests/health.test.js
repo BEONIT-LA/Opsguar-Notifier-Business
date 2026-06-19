@@ -29,9 +29,15 @@ jest.mock('../src/services/queueService', () => ({
     totalCompleted: 500, totalFailed: 10,
   }),
 }));
+jest.mock('../src/services/tenantService', () => ({
+  checkOperational: jest.fn().mockResolvedValue({ ok: true, tenant: { id: 1, name: 'Empresa A', max_sessions: 5, status: 'active' } }),
+  checkCanSend:     jest.fn().mockResolvedValue({ ok: true, tenant: { id: 1, name: 'Empresa A' } }),
+  incrementUsage:   jest.fn(),
+}));
 
 const app   = require('../app');
-const token = jwt.sign({ userId: 1, user: 'admin', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+// Token de un responsable (manager) ligado al tenant 1
+const token = jwt.sign({ userId: 1, user: 'acme', role: 'manager', tenantId: 1 }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
 describe('GET /api/health', () => {
 

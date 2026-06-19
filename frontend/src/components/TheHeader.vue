@@ -16,7 +16,7 @@
       </div>
       <div>
         <div class="logo-text">OPSGUARD</div>
-        <div class="logo-sub">Notificaciones WhatsApp</div>
+        <div class="logo-sub">{{ auth.tenant?.name || 'Notificaciones WhatsApp' }}</div>
       </div>
     </div>
 
@@ -37,6 +37,16 @@
 
     <!-- Lado derecho -->
     <div class="header-right">
+      <!-- Cuota / consumo del tenant -->
+      <div v-if="auth.usage" class="quota-pill" :class="{ danger: quotaDanger }" :title="quotaTitle">
+        <span class="quota-ico">📨</span>
+        <span class="quota-text">
+          {{ auth.usage.used }}<span class="quota-sep">/</span>{{ auth.usage.unlimited ? '∞' : auth.usage.quota }}
+        </span>
+      </div>
+
+      <div class="header-sep"></div>
+
       <!-- Indicador Socket.io -->
       <div class="ws-pill">
         <span class="ws-dot" :class="wsConnected ? 'green' : 'red'"></span>
@@ -164,6 +174,21 @@ const userWrapRef = ref(null)
 const wsConnected = ref(false)
 const { socket }  = useSocket()
 
+// ── Cuota / consumo del tenant ──────────────────────────────────
+const quotaDanger = computed(() => {
+  const u = auth.usage
+  if (!u || u.unlimited || !u.quota) return false
+  return u.used / u.quota >= 0.9
+})
+const quotaTitle = computed(() => {
+  const u = auth.usage
+  if (!u) return ''
+  if (u.unlimited) return 'Mensajes sin límite'
+  const period = u.quotaPeriod === 'monthly' ? 'este mes' : 'en total'
+  return `${u.remaining} mensaje(s) restantes ${period}`
+})
+function refreshUsage() { auth.fetchMe() }
+
 // ── Cambiar contraseña ─────────────────────────────────────────
 const showChangePassword = ref(false)
 const cpLoading  = ref(false)
@@ -260,12 +285,15 @@ onMounted(() => {
   wsConnected.value = socket.connected
   socket.on('connect',    () => { wsConnected.value = true  })
   socket.on('disconnect', () => { wsConnected.value = false })
+  socket.on('queue:update', refreshUsage)
+  auth.fetchMe()   // carga cuota/consumo inicial
   document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
   socket.off('connect')
   socket.off('disconnect')
+  socket.off('queue:update', refreshUsage)
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -323,6 +351,18 @@ onUnmounted(() => {
 }
 
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
+
+.quota-pill {
+  display: flex; align-items: center; gap: 0.4rem;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 20px; padding: 0.25rem 0.7rem;
+  font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-dim);
+}
+.quota-pill.danger { border-color: rgba(248,113,113,0.4); color: var(--red); background: var(--red-muted); }
+.quota-ico  { font-size: 0.8rem; }
+.quota-text { color: var(--text); }
+.quota-pill.danger .quota-text { color: var(--red); }
+.quota-sep  { color: var(--text-muted); margin: 0 0.1rem; }
 
 .ws-pill { display: flex; align-items: center; gap: 0.4rem; }
 .ws-dot {

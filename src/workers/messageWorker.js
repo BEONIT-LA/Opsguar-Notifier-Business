@@ -6,6 +6,7 @@ const { delay } = require('@whiskeysockets/baileys');
 const sessionManager       = require('../services/sessionManager');
 const { writeEntry }       = require('../services/auditService');
 const { getPoolByGroupId } = require('../services/poolService');
+const tenantService        = require('../services/tenantService');
 const { redis } = require('../config');
 
 const connection = new IORedis(redis.url, {
@@ -35,12 +36,12 @@ function esMiembroError(msg = '') {
  * - sessionIds = null           → round-robin global
  * El job permanece "procesando" en BullMQ — no bota a "en espera".
  */
-async function waitForSession(sessionIds, timeoutMs = 600_000) {
+async function waitForSession(tenantId, sessionIds, timeoutMs = 600_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const session = sessionIds?.length
-      ? sessionManager.getNextAvailableSessionFromPool(sessionIds)
-      : sessionManager.getNextAvailableSession();
+      ? sessionManager.getNextAvailableSessionFromPool(tenantId, sessionIds)
+      : sessionManager.getNextAvailableSession(tenantId);
 
     if (session && session.sock) return session;
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -49,8 +50,7 @@ async function waitForSession(sessionIds, timeoutMs = 600_000) {
 }
 
 function updateConcurrency() {
-  const ready = [...sessionManager.sessions.values()]
-    .filter(s => s.isReady && s.status === 'ready').length;
+  const ready = sessionManager.countReadyGlobal();
   const newConcurrency = Math.max(1, ready);
   if (worker && worker.concurrency !== newConcurrency) {
     worker.concurrency = newConcurrency;
@@ -132,10 +132,14 @@ async function enviarMensajes(sock, groupId, { text, imagePath, documentPath, im
 const worker = new Worker(
   'whatsapp-messages',
   async (job) => {
-    const { groupId, text, imagePath, documentPath } = job.data;
+    const { tenantId, groupId, text, imagePath, documentPath } = job.data;
 
-    // Consulta el pool en tiempo real — cambios al pool aplican de inmediato
-    const pool = await getPoolByGroupId(groupId).catch(() => null);
+    if (!tenantId) {
+      throw new UnrecoverableError('Job sin tenantId — no se puede enrutar.');
+    }
+
+    // Consulta el pool del tenant en tiempo real — cambios aplican de inmediato
+    const pool = await getPoolByGroupId(tenantId, groupId).catch(() => null);
     const poolSessionIds = pool?.session_ids?.length ? pool.session_ids : null;
 
     if (pool && !poolSessionIds) {
@@ -148,11 +152,11 @@ const worker = new Worker(
     const triedSessions = new Set();
 
     while (true) {
-      // Universo de sesiones a considerar:
+      // Universo de sesiones a considerar (siempre del tenant):
       // - Con pool  → las sesiones del pool
-      // - Sin pool  → todas las sesiones registradas en el sistema
+      // - Sin pool  → todas las sesiones registradas del tenant
       const universo = poolSessionIds
-        || [...sessionManager.sessions.keys()];
+        || sessionManager.listSessionIds(tenantId);
 
       // Filtra las que ya fallaron con "no es miembro" en este job
       const disponibles = universo.filter(id => !triedSessions.has(id));
@@ -169,7 +173,7 @@ const worker = new Worker(
       }
 
       // Espera turno con las sesiones disponibles (excluye las ya intentadas)
-      const session = await waitForSession(disponibles);
+      const session = await waitForSession(tenantId, disponibles);
 
       if (!session) {
         const poolInfo = pool ? ` (pool "${pool.name}")` : '';
@@ -179,8 +183,8 @@ const worker = new Worker(
       const { sock, sessionId } = session;
       job.data._sessionId = sessionId;
 
-      sessionManager.acquireSession(sessionId);
-      console.log(`[Worker] Job ${job.id} → sesión "${sessionId}" (adquirida)`);
+      sessionManager.acquireSession(tenantId, sessionId);
+      console.log(`[Worker] Job ${job.id} (tenant ${tenantId}) → sesión "${sessionId}" (adquirida)`);
 
       let noEsMiembro = false;
 
@@ -194,19 +198,20 @@ const worker = new Worker(
           throw sendErr; // error real → BullMQ reintentará normalmente
         }
       } finally {
-        sessionManager.releaseSession(sessionId);
+        sessionManager.releaseSession(tenantId, sessionId);
         console.log(`[Worker] Job ${job.id} → sesión "${sessionId}" (liberada)`);
       }
 
       if (noEsMiembro) {
         triedSessions.add(sessionId);
-        const universoActual = poolSessionIds || [...sessionManager.sessions.keys()];
+        const universoActual = poolSessionIds || sessionManager.listSessionIds(tenantId);
         const restantes = universoActual.filter(id => !triedSessions.has(id)).length;
         console.warn(
           `[Worker] Job ${job.id} → "${sessionId}" no es miembro de ${groupId}. ` +
           `Rotando... (${restantes} sesión/es restantes en el pool)`
         );
         sessionManager.emit('job:warn', {
+          tenantId,
           sessionId,
           groupId,
           message: `Sesión "${sessionId}" no es miembro del grupo — rotando a otro número del pool (${restantes} restantes)`,
@@ -215,7 +220,7 @@ const worker = new Worker(
       }
 
       // Éxito ✅
-      return { success: true, sessionId, jobId: job.id };
+      return { success: true, tenantId, sessionId, jobId: job.id };
     }
   },
   { connection, concurrency: 1 }
@@ -229,12 +234,18 @@ sessionManager.on('session:removed',      updateConcurrency);
 // ── Eventos del worker ────────────────────────────────────────
 
 worker.on('completed', (job, result) => {
-  console.log(`[Worker] Job ${job.id} completado → sesión "${result.sessionId}"`);
+  const tenantId = job.data.tenantId;
+  console.log(`[Worker] Job ${job.id} (tenant ${tenantId}) completado → sesión "${result.sessionId}"`);
   connection.incr('wa:stats:completed').catch(() => {});
-  sessionManager.emit('queue:update', {});
+
+  // Consume 1 mensaje de la cuota del tenant (el mensaje se envió de verdad)
+  if (tenantId) tenantService.incrementUsage(tenantId, 1).catch(() => {});
+
+  sessionManager.emit('queue:update', { tenantId });
 
   const type = job.data.imagePath ? 'image' : job.data.documentPath ? 'document' : 'text';
   writeEntry({
+    tenantId,
     jobId:     job.id,
     status:    'completed',
     sessionId: result.sessionId,
@@ -249,6 +260,7 @@ worker.on('completed', (job, result) => {
 });
 
 worker.on('failed', (job, err) => {
+  const tenantId  = job?.data?.tenantId || null;
   const sessionId = job?.data?._sessionId || 'desconocida';
   const groupId   = job?.data?.groupId    || '?';
   const intento   = `${job?.attemptsMade}/${job?.opts?.attempts}`;
@@ -259,9 +271,10 @@ worker.on('failed', (job, err) => {
 
   if (esIrrecuperable || esUltimoIntento) {
     connection.incr('wa:stats:failed').catch(() => {});
-    sessionManager.emit('queue:update', {});
+    sessionManager.emit('queue:update', { tenantId });
     const type = job.data?.imagePath ? 'image' : job.data?.documentPath ? 'document' : 'text';
     writeEntry({
+      tenantId,
       jobId:     job?.id,
       status:    'failed',
       sessionId: job?.data?._sessionId || 'desconocida',
@@ -281,19 +294,19 @@ worker.on('failed', (job, err) => {
   if (esIrrecuperable) {
     // Todos los números del pool fallaron — no quedan opciones
     sessionManager.emit('job:warn', {
-      sessionId, groupId,
+      tenantId, sessionId, groupId,
       message: `❌ Job ${job?.id} — ningún número del pool es miembro del grupo. Agrega los números al grupo.`,
     });
     console.error(`[Worker] Job ${job?.id} irrecuperable: ${msg}`);
   } else if (esRateLimit) {
     sessionManager.emit('job:warn', {
-      sessionId, groupId,
+      tenantId, sessionId, groupId,
       message: `Job ${job?.id} — rate limit de WhatsApp (intento ${intento}), reintentando...`,
     });
     console.warn(`[Worker] Job ${job?.id} rate limit (intento ${intento})`);
   } else {
     sessionManager.emit('job:warn', {
-      sessionId, groupId,
+      tenantId, sessionId, groupId,
       message: `Job ${job?.id} falló (intento ${intento}): ${msg}`,
     });
     console.error(`[Worker] Job ${job?.id} falló (intento ${intento}): ${msg}`);

@@ -7,6 +7,53 @@
       </div>
     </div>
 
+    <!-- ── Tokens de API del tenant ── -->
+    <div class="tokens-panel">
+      <div class="tp-head">
+        <div>
+          <div class="tp-title">🔑 Tokens de API</div>
+          <div class="tp-desc">Autentica tus integraciones con <code class="inline-code">Authorization: Bearer ogt_…</code>. Cada token es de tu empresa y cuenta contra tu cuota.</div>
+        </div>
+      </div>
+
+      <div class="tp-create">
+        <input v-model="newTokenName" placeholder="Nombre del token (ej: integración-CRM)" @keyup.enter="createToken" />
+        <button class="btn btn-accent" :disabled="creating" @click="createToken">
+          {{ creating ? 'Creando…' : 'Generar token' }}
+        </button>
+      </div>
+
+      <!-- Token recién creado (se muestra una sola vez) -->
+      <div v-if="createdToken" class="tp-new">
+        <div class="tp-new-label">⚠ Copia este token ahora — no se volverá a mostrar:</div>
+        <div class="tp-new-row">
+          <code class="tp-token">{{ createdToken.token }}</code>
+          <button class="copy-btn static" @click="copyToken(createdToken.token)">
+            {{ tokenCopied ? '✓ Copiado' : 'Copiar' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="tokenError" class="tp-error">⚠ {{ tokenError }}</div>
+
+      <!-- Lista de tokens -->
+      <div class="tp-list">
+        <div v-for="t in tokens" :key="t.id" class="tp-item" :class="{ revoked: t.revoked_at }">
+          <div class="tp-item-main">
+            <span class="tp-item-name">{{ t.name }}</span>
+            <code class="tp-item-prefix">{{ t.prefix }}…</code>
+          </div>
+          <div class="tp-item-meta">
+            <span v-if="t.revoked_at" class="tp-tag revoked">revocado</span>
+            <span v-else class="tp-tag active">activo</span>
+            <span class="tp-last">{{ t.last_used_at ? 'usado ' + fmt(t.last_used_at) : 'sin uso' }}</span>
+            <button v-if="!t.revoked_at" class="tp-revoke" @click="revokeToken(t.id)">Revocar</button>
+          </div>
+        </div>
+        <div v-if="!tokens.length" class="tp-empty">Aún no hay tokens. Genera el primero arriba.</div>
+      </div>
+    </div>
+
     <!-- Filtro de sección -->
     <div class="section-tabs">
       <button
@@ -83,12 +130,62 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import api from '@/api/axios'
 
 const activeSection = ref('all')
 const openEps  = ref([])
 const activeLang = reactive({})
 const copied   = ref(null)
+
+// ── Tokens de API ───────────────────────────────────────────────
+const tokens       = ref([])
+const newTokenName = ref('')
+const createdToken = ref(null)
+const tokenCopied  = ref(false)
+const creating     = ref(false)
+const tokenError   = ref('')
+
+function fmt(d) { return new Date(d).toLocaleString() }
+
+async function loadTokens() {
+  try {
+    const { data } = await api.get('/tokens')
+    tokens.value = data.data
+  } catch (e) {
+    tokenError.value = e.response?.data?.message || 'No se pudieron cargar los tokens'
+  }
+}
+
+async function createToken() {
+  if (!newTokenName.value.trim()) { tokenError.value = 'Ponle un nombre al token'; return }
+  creating.value = true; tokenError.value = ''
+  try {
+    const { data } = await api.post('/tokens', { name: newTokenName.value.trim() })
+    createdToken.value = data.data
+    newTokenName.value = ''
+    await loadTokens()
+  } catch (e) {
+    tokenError.value = e.response?.data?.message || 'Error al crear el token'
+  } finally {
+    creating.value = false
+  }
+}
+
+async function revokeToken(id) {
+  if (!confirm('¿Revocar este token? Las integraciones que lo usen dejarán de funcionar.')) return
+  try { await api.delete(`/tokens/${id}`); await loadTokens() }
+  catch (e) { tokenError.value = e.response?.data?.message || 'Error al revocar' }
+}
+
+function copyToken(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    tokenCopied.value = true
+    setTimeout(() => { tokenCopied.value = false }, 2000)
+  })
+}
+
+onMounted(loadTokens)
 
 function toggle(path) {
   const idx = openEps.value.indexOf(path)
@@ -420,6 +517,42 @@ const visibleSections = computed(() =>
 .page-title  { font-size: 1.15rem; font-weight: 600; }
 .page-desc   { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem; }
 .inline-code { font-family: monospace; font-size: 0.78rem; color: var(--cyan); }
+
+/* ── Panel de tokens ── */
+.tokens-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; margin-bottom: 1.5rem; }
+.tp-head { margin-bottom: 0.85rem; }
+.tp-title { font-size: 0.95rem; font-weight: 600; }
+.tp-desc  { font-size: 0.76rem; color: var(--text-dim); margin-top: 0.2rem; }
+.tp-create { display: flex; gap: 0.5rem; margin-bottom: 0.85rem; }
+.tp-create input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.55rem 0.8rem; color: var(--text); font-size: 0.85rem; font-family: inherit; outline: none; }
+.tp-create input:focus { border-color: var(--accent); }
+.btn { border: none; border-radius: var(--radius-sm); padding: 0.55rem 1.1rem; font-size: 0.82rem; font-weight: 500; font-family: inherit; cursor: pointer; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-accent:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.tp-new { background: var(--green-muted); border: 1px solid rgba(52,211,153,0.3); border-radius: var(--radius-sm); padding: 0.7rem 0.85rem; margin-bottom: 0.85rem; }
+.tp-new-label { font-size: 0.74rem; color: var(--green); margin-bottom: 0.45rem; }
+.tp-new-row { display: flex; align-items: center; gap: 0.5rem; }
+.tp-token { flex: 1; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text); background: var(--bg); padding: 0.45rem 0.65rem; border-radius: 5px; word-break: break-all; }
+.copy-btn.static { position: static; }
+
+.tp-error { font-size: 0.78rem; color: var(--red); background: var(--red-muted); padding: 0.45rem 0.7rem; border-radius: var(--radius-sm); margin-bottom: 0.6rem; }
+
+.tp-list { display: flex; flex-direction: column; gap: 0.45rem; }
+.tp-item { display: flex; align-items: center; justify-content: space-between; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.55rem 0.8rem; }
+.tp-item.revoked { opacity: 0.55; }
+.tp-item-main { display: flex; align-items: baseline; gap: 0.6rem; }
+.tp-item-name { font-size: 0.85rem; font-weight: 500; }
+.tp-item-prefix { font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-dim); }
+.tp-item-meta { display: flex; align-items: center; gap: 0.7rem; }
+.tp-tag { font-size: 0.62rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 20px; text-transform: uppercase; }
+.tp-tag.active  { background: var(--green-muted); color: var(--green); }
+.tp-tag.revoked { background: var(--red-muted);   color: var(--red); }
+.tp-last { font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); }
+.tp-revoke { background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); font-size: 0.72rem; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.tp-revoke:hover { color: var(--red); border-color: var(--red); }
+.tp-empty { font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 0.75rem; }
 
 .section-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .sec-btn {

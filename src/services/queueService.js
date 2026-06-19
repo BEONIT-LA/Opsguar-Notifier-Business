@@ -25,31 +25,45 @@ async function enqueueMessage(data) {
   return job.id;
 }
 
-async function getQueueStats(sessionManager) {
-  const [waiting, active, completed, failed, delayed, totalCompleted, totalFailed] = await Promise.all([
-    messageQueue.getWaitingCount(),
-    messageQueue.getActiveCount(),
-    messageQueue.getCompletedCount(),
-    messageQueue.getFailedCount(),
-    messageQueue.getDelayedCount(),
-    connection.get('wa:stats:completed'),
-    connection.get('wa:stats:failed'),
+// Cuántos jobs en la lista pertenecen al tenant. Se limita la inspección para
+// no recorrer colas enormes; suficiente para las métricas de la UI.
+const SCAN_LIMIT = 1000;
+function countForTenant(jobs, tenantId) {
+  return jobs.filter(j => String(j?.data?.tenantId) === String(tenantId)).length;
+}
+
+/**
+ * Estadísticas de cola SCOPEADAS por tenant.
+ * - waiting/active/delayed: jobs en vuelo de ESE tenant (cola global compartida)
+ * - ready: sesiones listas del tenant
+ * - completed/failed: histórico del tenant desde audit_logs
+ */
+async function getQueueStats(tenantId, sessionManager) {
+  const auditService = require('./auditService');
+
+  const [waitingJobs, activeJobs, delayedJobs, stats] = await Promise.all([
+    messageQueue.getWaiting(0, SCAN_LIMIT),
+    messageQueue.getActive(0, SCAN_LIMIT),
+    messageQueue.getDelayed(0, SCAN_LIMIT),
+    auditService.getStats(tenantId).catch(() => ({ completed: 0, failed: 0 })),
   ]);
 
-  // Sesiones listas en este momento (no cuántos jobs activos hay en BullMQ)
   const ready = sessionManager
-    ? [...sessionManager.sessions.values()].filter(s => s.isReady && s.status === 'ready').length
+    ? Object.values(sessionManager.getAllSessions(tenantId)).filter(s => s.isReady).length
     : 0;
 
+  const completed = parseInt(stats.completed || 0, 10);
+  const failed    = parseInt(stats.failed    || 0, 10);
+
   return {
-    waiting,
-    active,
-    ready,      // sesiones disponibles — reemplaza "procesando" en la UI
+    waiting:  countForTenant(waitingJobs, tenantId),
+    active:   countForTenant(activeJobs, tenantId),
+    delayed:  countForTenant(delayedJobs, tenantId),
+    ready,
     completed,
     failed,
-    delayed,
-    totalCompleted: parseInt(totalCompleted || '0', 10),
-    totalFailed:    parseInt(totalFailed    || '0', 10),
+    totalCompleted: completed,
+    totalFailed:    failed,
   };
 }
 

@@ -21,9 +21,22 @@ docker run -d --name redis-whatsapp -p 6379:6379 redis:alpine
 - `NODE_ENV` — entorno (default: `development`)
 - `REDIS_URL` — conexión Redis (default: `redis://localhost:6379`)
 
+## Multi-tenant (OpsGuard SaaS)
+
+Esta es la versión **multiempresa** (fork de OpsGuard Notifier). Conceptos clave:
+
+- **superadmin** (admin de plataforma, `tenant_id NULL`): crea y administra *tenants* (empresas) desde `/admin` → `/api/admin/*`.
+- **tenant** (`tenants`): empresa con **cuota de mensajes** (`message_quota`, 0=ilimitado; `quota_period` total|monthly), **vigencia** (`valid_from`/`valid_until`), **tope de sesiones** (`max_sessions`) y estado activo|suspendido.
+- **manager** (responsable, role `manager`, ligado a un `tenant_id`): entra a `/` (workspace) y gestiona SUS sesiones, grupos, pools, auditoría y **tokens de API**.
+- **Aislamiento**: sesiones (`auth_sessions/{tenantId}/{sessionId}` + tabla `wa_sessions`), `group_pools`, `audit_logs` y eventos Socket.io (rooms `tenant:{id}`) están scopeados por tenant. El `SessionManager` usa clave compuesta `tenantId::sessionId`.
+- **Auth dual** (`src/middleware/authMiddleware.js`): JWT del panel (incluye `tenantId`+`role`) **o** token de API `Authorization: Bearer ogt_…` (tabla `tenant_api_tokens`, hash SHA-256). El token de API opera a nivel de su tenant pero no puede gestionar tokens ni `/api/admin`.
+- **Cuota**: se valida al encolar (`tenantService.checkCanSend` → 402 si agotada / 403 si suspendida o expirada) y se incrementa (`messages_used`) al completar el envío en el worker.
+
+Variables de entorno BD: `POSTGRES_HOST/PORT/DB/USER/PASS`. Migraciones: `database/006`→`011` (idempotentes, orden alfabético en `docker-entrypoint-initdb.d`). Seed superadmin: `node database/seed.js`.
+
 ## Architecture
 
-WhatsApp REST API con soporte multi-sesión. Stack: Express + Baileys + BullMQ + Socket.io.
+WhatsApp REST API multiempresa con soporte multi-sesión. Stack: Express + Baileys + BullMQ + Socket.io + PostgreSQL.
 
 ```
 HTTP + WebSocket (Socket.io)
@@ -79,8 +92,23 @@ Vincula los eventos del `SessionManager` a todos los clientes conectados. Al con
 
 ## API Endpoints
 
+Todas las rutas `/api/*` (salvo `/api/auth/*`) requieren JWT o token de API y un tenant activo. Las `/api/admin/*` requieren rol superadmin.
+
+**Plataforma (superadmin):**
+
 | Método | Ruta | Descripción |
 |--------|------|-------------|
+| `GET`  | `/api/admin/tenants` | Listar tenants con consumo |
+| `POST` | `/api/admin/tenants` | Crear tenant + responsable (cuota, vigencia, max_sessions) |
+| `PATCH`| `/api/admin/tenants/:id` | Editar cuota/vigencia/estado/etc. |
+| `POST` | `/api/admin/tenants/:id/{suspend,activate,reset-usage,reset-password}` | Acciones sobre el tenant |
+
+**Workspace del tenant (manager / token de API):**
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET`  | `/api/me` | Datos del tenant + consumo/cuota |
+| `GET/POST/DELETE` | `/api/tokens[/:id]` | Tokens de API (solo JWT, no token de API) |
 | `POST` | `/api/sessions` | Crear sesión `{ sessionId }` |
 | `GET` | `/api/sessions` | Listar sesiones y estado |
 | `DELETE` | `/api/sessions/:id` | Eliminar sesión |

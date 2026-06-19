@@ -15,10 +15,12 @@ router.post('/login', async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT id, username, password, role,
-              first_name, last_name, email
-       FROM users
-       WHERE username = $1 AND is_active = true`,
+      `SELECT u.id, u.username, u.password, u.role,
+              u.first_name, u.last_name, u.email, u.tenant_id,
+              t.name AS tenant_name, t.slug AS tenant_slug, t.status AS tenant_status
+       FROM users u
+       LEFT JOIN tenants t ON t.id = u.tenant_id
+       WHERE u.username = $1 AND u.is_active = true`,
       [user]
     );
 
@@ -33,13 +35,18 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Credenciales incorrectas' });
     }
 
+    // Un usuario de tenant cuya empresa está suspendida no puede entrar
+    if (dbUser.tenant_id && dbUser.tenant_status === 'suspended') {
+      return res.status(403).json({ success: false, message: 'La empresa está suspendida. Contacta al administrador.' });
+    }
+
     await db.query('UPDATE users SET last_login = NOW() WHERE id = $1', [dbUser.id]);
 
     // Nombre completo: combina first_name + last_name si existen
     const fullName = [dbUser.first_name, dbUser.last_name].filter(Boolean).join(' ') || null;
 
     const token = jwt.sign(
-      { userId: dbUser.id, user: dbUser.username, role: dbUser.role },
+      { userId: dbUser.id, user: dbUser.username, role: dbUser.role, tenantId: dbUser.tenant_id || null },
       auth.jwtSecret,
       { expiresIn: auth.jwtExpires }
     );
@@ -51,6 +58,9 @@ router.post('/login', async (req, res) => {
       fullName,
       email:     dbUser.email || null,
       role:      dbUser.role,
+      tenant:    dbUser.tenant_id
+        ? { id: dbUser.tenant_id, name: dbUser.tenant_name, slug: dbUser.tenant_slug }
+        : null,
       expiresIn: auth.jwtExpires,
     });
 

@@ -1,8 +1,10 @@
-const express    = require('express');
-const path       = require('path');
-const authRoutes = require('./src/routes/authRoutes');
-const apiRoutes  = require('./src/routes/whatsappRoutes');
+const express     = require('express');
+const path        = require('path');
+const authRoutes  = require('./src/routes/authRoutes');
+const apiRoutes   = require('./src/routes/whatsappRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 const authMiddleware = require('./src/middleware/authMiddleware');
+const { requireSuperadmin, requireActiveTenant } = require('./src/middleware/tenantContext');
 
 const app = express();
 
@@ -14,8 +16,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── Auth: login público, sin JWT ──────────────────────────────
 app.use('/api/auth', authRoutes);
 
-// ── API protegida: requiere JWT válido ────────────────────────
-app.use('/api', authMiddleware, apiRoutes);
+// ── Admin de plataforma: requiere JWT + rol superadmin ─────────
+// (se monta ANTES de /api para que matchee primero)
+app.use('/api/admin', authMiddleware, requireSuperadmin, adminRoutes);
+
+// ── Workspace del tenant: requiere JWT/token de API + tenant activo ──
+app.use('/api', authMiddleware, requireActiveTenant, apiRoutes);
 
 // ── SPA Fallback: cualquier ruta desconocida → index.html ─────
 // Express 5 ya no acepta '*' — se usa '/*splat' en su lugar.

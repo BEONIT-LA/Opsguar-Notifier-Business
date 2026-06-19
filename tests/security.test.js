@@ -27,13 +27,18 @@ jest.mock('../src/services/queueService', () => ({
     totalCompleted: 0, totalFailed: 0,
   }),
 }));
+jest.mock('../src/services/tenantService', () => ({
+  checkOperational: jest.fn().mockResolvedValue({ ok: true, tenant: { id: 1, name: 'Empresa A', max_sessions: 5, status: 'active' } }),
+  checkCanSend:     jest.fn().mockResolvedValue({ ok: true, tenant: { id: 1 } }),
+  incrementUsage:   jest.fn(),
+}));
 
 const app        = require('../app');
 const JWT_SECRET = process.env.JWT_SECRET;
 
-const validToken   = jwt.sign({ userId: 1, user: 'admin', role: 'admin' }, JWT_SECRET, { expiresIn: '1h' });
-const expiredToken = jwt.sign({ userId: 1, user: 'admin', role: 'admin' }, JWT_SECRET, { expiresIn: '-1s' });
-const wrongSecret  = jwt.sign({ userId: 1, user: 'admin', role: 'admin' }, 'secret_incorrecto', { expiresIn: '1h' });
+const validToken   = jwt.sign({ userId: 1, user: 'acme', role: 'manager', tenantId: 1 }, JWT_SECRET, { expiresIn: '1h' });
+const expiredToken = jwt.sign({ userId: 1, user: 'acme', role: 'manager', tenantId: 1 }, JWT_SECRET, { expiresIn: '-1s' });
+const wrongSecret  = jwt.sign({ userId: 1, user: 'acme', role: 'manager', tenantId: 1 }, 'secret_incorrecto', { expiresIn: '1h' });
 
 const PROTECTED_ROUTES = [
   { method: 'get', path: '/api/sessions'    },

@@ -1,7 +1,7 @@
 {
-  "name": "mswhatsappbaileys",
-  "version": "1.0.0",
-  "description": "To make it easy for you to get started with GitLab, here's a list of recommended next steps.",
+  "name": "opsguard-saas",
+  "version": "2.0.0",
+  "description": "OpsGuard SaaS — plataforma multiempresa de notificaciones WhatsApp (multi-tenant): el admin crea tenants con cuota/vigencia, cada responsable gestiona sus sesiones, grupos y tokens de API.",
   "main": "index.js",
   "scripts": {
     "dev": "node server.js",

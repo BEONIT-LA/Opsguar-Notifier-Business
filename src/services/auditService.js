@@ -18,9 +18,10 @@ async function writeEntry(entry) {
   try {
     await db.query(
       `INSERT INTO audit_logs
-         (job_id, status, session_id, group_id, type, text, image_path, doc_path, ip, duration, attempt, error)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+         (tenant_id, job_id, status, session_id, group_id, type, text, image_path, doc_path, ip, duration, attempt, error)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
+        entry.tenantId   || null,
         entry.jobId      || null,
         entry.status,
         entry.sessionId  || null,
@@ -43,10 +44,14 @@ async function writeEntry(entry) {
 /**
  * Lee registros con filtros y paginación real.
  */
-async function readEntries({ date, session, status, limit = 100, offset = 0 } = {}) {
+async function readEntries({ tenantId, date, session, status, limit = 100, offset = 0 } = {}) {
   const conditions = [];
   const params     = [];
 
+  if (tenantId != null) {
+    params.push(tenantId);
+    conditions.push(`tenant_id = $${params.length}`);
+  }
   if (date) {
     params.push(date);
     conditions.push(`DATE(created_at AT TIME ZONE 'UTC') = $${params.length}`);
@@ -85,24 +90,26 @@ async function readEntries({ date, session, status, limit = 100, offset = 0 } = 
 /**
  * Fechas distintas con registros (para el selector del frontend).
  */
-async function listDates() {
+async function listDates(tenantId) {
   const result = await db.query(
     `SELECT DISTINCT DATE(created_at AT TIME ZONE 'UTC')::text AS date
-     FROM audit_logs ORDER BY date DESC LIMIT 90`
+     FROM audit_logs WHERE tenant_id = $1 ORDER BY date DESC LIMIT 90`,
+    [tenantId]
   );
   return result.rows.map(r => r.date);
 }
 
 /**
- * Stats globales de auditoría.
+ * Stats de auditoría del tenant.
  */
-async function getStats() {
+async function getStats(tenantId) {
   const result = await db.query(
     `SELECT
        COUNT(*)                                        AS total,
        COUNT(*) FILTER (WHERE status = 'completed')   AS completed,
        COUNT(*) FILTER (WHERE status = 'failed')      AS failed
-     FROM audit_logs`
+     FROM audit_logs WHERE tenant_id = $1`,
+    [tenantId]
   );
   return result.rows[0];
 }

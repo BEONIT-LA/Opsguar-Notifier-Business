@@ -26,54 +26,85 @@ const {
 const MAX_RETRIES = 3;
 const AUTH_BASE_DIR = path.resolve('./auth_sessions');
 
+/**
+ * SessionManager multi-tenant.
+ *
+ * Las sesiones se aíslan por tenant. Internamente el Map usa una clave
+ * compuesta "{tenantId}::{sessionId}", y en disco cada sesión vive en
+ * auth_sessions/{tenantId}/{sessionId}/. Todos los métodos públicos reciben
+ * (tenantId, sessionId) y todos los eventos emitidos incluyen `tenantId`
+ * para que socketHandler pueda enrutar a la room del tenant.
+ */
 class SessionManager extends EventEmitter {
   constructor() {
     super();
-    // Map<sessionId, { sock, isReady, qrCode, qrBase64, status, retryCount }>
+    // Map<compositeKey, { tenantId, sessionId, sock, isReady, ... }>
     this.sessions = new Map();
     this._rrIndex = 0;
-    // Map<phoneNumber, sessionId> para detectar duplicados
+    // Map<tenantId, Map<phoneNumber, sessionId>> para detectar duplicados por tenant
     this._phoneIndex = new Map();
   }
 
+  // ── Helpers de clave / disco ────────────────────────────────
+  _key(tenantId, sessionId) { return `${tenantId}::${sessionId}`; }
+  _authDir(tenantId, sessionId) {
+    return path.join(AUTH_BASE_DIR, String(tenantId), sessionId);
+  }
+  _phoneMap(tenantId) {
+    if (!this._phoneIndex.has(tenantId)) this._phoneIndex.set(tenantId, new Map());
+    return this._phoneIndex.get(tenantId);
+  }
+
   /**
-   * Al arrancar: escanea auth_sessions/ y restaura sesiones existentes.
+   * Al arrancar: escanea auth_sessions/{tenantId}/{sessionId}/ y restaura.
    */
   async initializeSessions() {
     fs.mkdirSync(AUTH_BASE_DIR, { recursive: true });
 
-    const dirs = fs.readdirSync(AUTH_BASE_DIR, { withFileTypes: true })
+    const tenantDirs = fs.readdirSync(AUTH_BASE_DIR, { withFileTypes: true })
       .filter(d => d.isDirectory())
       .map(d => d.name);
 
-    if (dirs.length === 0) {
-      console.log('[SessionManager] Sin sesiones guardadas. Crea una desde POST /api/sessions');
+    const toRestore = [];
+    for (const tenantId of tenantDirs) {
+      const tenantPath = path.join(AUTH_BASE_DIR, tenantId);
+      const sessDirs = fs.readdirSync(tenantPath, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name);
+      for (const sessionId of sessDirs) toRestore.push({ tenantId, sessionId });
+    }
+
+    if (toRestore.length === 0) {
+      console.log('[SessionManager] Sin sesiones guardadas. Cada tenant crea las suyas desde su workspace.');
       return;
     }
 
-    console.log(`[SessionManager] Restaurando ${dirs.length} sesión(es): ${dirs.join(', ')}`);
-    await Promise.all(dirs.map(id => this.createSession(id)));
+    console.log(`[SessionManager] Restaurando ${toRestore.length} sesión(es) de ${tenantDirs.length} tenant(s)`);
+    await Promise.all(toRestore.map(({ tenantId, sessionId }) =>
+      this.createSession(tenantId, sessionId)));
   }
 
-  async createSession(sessionId) {
-    const id = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  async createSession(tenantId, sessionId) {
+    const id  = String(sessionId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const key = this._key(tenantId, id);
 
-    if (this.sessions.has(id)) {
-      const existing = this.sessions.get(id);
+    if (this.sessions.has(key)) {
+      const existing = this.sessions.get(key);
       const recoverable = ['failed', 'logged_out'].includes(existing.status);
 
       if (!recoverable) {
         return { error: 'La sesión ya existe y está activa' };
       }
 
-      // Sesión caída o cerrada — limpiar y reconectar automáticamente
-      console.log(`[Session:${id}] Sesión en estado "${existing.status}", reconectando...`);
-      if (existing.phone) this._phoneIndex.delete(existing.phone);
+      console.log(`[Session:${key}] Sesión en estado "${existing.status}", reconectando...`);
+      if (existing.phone) this._phoneMap(tenantId).delete(existing.phone);
       try { if (existing.sock) await existing.sock.logout(); } catch (_) {}
-      this.sessions.delete(id);
+      this.sessions.delete(key);
     }
 
-    this.sessions.set(id, {
+    this.sessions.set(key, {
+      tenantId,
+      sessionId: id,
       sock: null,
       isReady: false,
       qrCode: null,
@@ -81,19 +112,20 @@ class SessionManager extends EventEmitter {
       status: 'connecting',
       retryCount: 0,
       phone: null,
-      isBusy: false,   // true mientras el worker está usando esta sesión
+      isBusy: false,
     });
 
-    await this._connect(id);
+    await this._connect(tenantId, id);
     return { sessionId: id };
   }
 
-  async _connect(sessionId) {
-    const session = this.sessions.get(sessionId);
+  async _connect(tenantId, sessionId) {
+    const key = this._key(tenantId, sessionId);
+    const session = this.sessions.get(key);
     if (!session) return;
 
     try {
-      const authDir = path.join(AUTH_BASE_DIR, sessionId);
+      const authDir = this._authDir(tenantId, sessionId);
       fs.mkdirSync(authDir, { recursive: true });
 
       const { state, saveCreds } = await useMultiFileAuthState(authDir);
@@ -109,16 +141,17 @@ class SessionManager extends EventEmitter {
       });
 
       session.sock = sock;
-      sock.ev.on('connection.update', (update) => this._handleUpdate(sessionId, update));
+      sock.ev.on('connection.update', (update) => this._handleUpdate(tenantId, sessionId, update));
       sock.ev.on('creds.update', saveCreds);
     } catch (error) {
-      console.error(`[Session:${sessionId}] Error al conectar:`, error.message);
-      this._scheduleRetry(sessionId);
+      console.error(`[Session:${key}] Error al conectar:`, error.message);
+      this._scheduleRetry(tenantId, sessionId);
     }
   }
 
-  async _handleUpdate(sessionId, update) {
-    const session = this.sessions.get(sessionId);
+  async _handleUpdate(tenantId, sessionId, update) {
+    const key = this._key(tenantId, sessionId);
+    const session = this.sessions.get(key);
     if (!session) return;
 
     const { connection, lastDisconnect, qr } = update;
@@ -131,46 +164,45 @@ class SessionManager extends EventEmitter {
       } catch (_) {
         session.qrBase64 = null;
       }
-      this.emit('session:qr', { sessionId, qr, qrBase64: session.qrBase64 });
+      this.emit('session:qr', { tenantId, sessionId, qr, qrBase64: session.qrBase64 });
     }
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
 
-      // Limpiar número del índice al desconectarse
       if (session.phone) {
-        this._phoneIndex.delete(session.phone);
+        this._phoneMap(tenantId).delete(session.phone);
         session.phone = null;
       }
 
       session.isReady = false;
       session.qrCode = null;
       session.qrBase64 = null;
-      this.emit('session:disconnected', { sessionId, statusCode });
+      this.emit('session:disconnected', { tenantId, sessionId, statusCode });
 
       if (loggedOut) {
         session.status = 'logged_out';
-        this.emit('session:failed', { sessionId, reason: 'logged_out' });
+        this.emit('session:failed', { tenantId, sessionId, reason: 'logged_out' });
       } else {
-        this._scheduleRetry(sessionId);
+        this._scheduleRetry(tenantId, sessionId);
       }
     }
 
     if (connection === 'open') {
-      // Extraer número del JID (ej: "521234567890:12@s.whatsapp.net" → "521234567890")
       const rawJid = session.sock?.user?.id || '';
       const phone  = rawJid.split(':')[0].split('@')[0] || null;
 
-      // Detectar si ese número ya está en otra sesión activa
-      if (phone && this._phoneIndex.has(phone)) {
-        const existing = this._phoneIndex.get(phone);
+      // Detectar número duplicado DENTRO del mismo tenant
+      const phoneMap = this._phoneMap(tenantId);
+      if (phone && phoneMap.has(phone)) {
+        const existing = phoneMap.get(phone);
         if (existing !== sessionId) {
-          console.warn(`[Session:${sessionId}] Número ${phone} ya está en uso por "${existing}". Desconectando duplicado.`);
+          console.warn(`[Session:${key}] Número ${phone} ya en uso por "${existing}" en este tenant. Desconectando duplicado.`);
           session.status = 'failed';
           session.isReady = false;
           try { await session.sock.logout(); } catch (_) {}
-          this.emit('session:failed', { sessionId, reason: `Número duplicado — ya en uso por "${existing}"` });
+          this.emit('session:failed', { tenantId, sessionId, reason: `Número duplicado — ya en uso por "${existing}"` });
           return;
         }
       }
@@ -182,62 +214,61 @@ class SessionManager extends EventEmitter {
       session.retryCount = 0;
       session.phone = phone;
 
-      if (phone) this._phoneIndex.set(phone, sessionId);
+      if (phone) phoneMap.set(phone, sessionId);
 
-      console.log(`[Session:${sessionId}] Conectado ✓ — número: ${phone || 'desconocido'}`);
-      this.emit('session:ready', { sessionId, phone });
+      console.log(`[Session:${key}] Conectado ✓ — número: ${phone || 'desconocido'}`);
+      this.emit('session:ready', { tenantId, sessionId, phone });
     }
   }
 
-  /**
-   * Reintenta la conexión con backoff. Tras MAX_RETRIES marca la sesión como caída
-   * y emite session:failed SIN tocar carpetas de otras sesiones.
-   */
-  _scheduleRetry(sessionId) {
-    const session = this.sessions.get(sessionId);
+  _scheduleRetry(tenantId, sessionId) {
+    const key = this._key(tenantId, sessionId);
+    const session = this.sessions.get(key);
     if (!session) return;
 
     session.retryCount += 1;
 
     if (session.retryCount >= MAX_RETRIES) {
       session.status = 'failed';
-      console.error(`[Session:${sessionId}] Máximo reintentos (${MAX_RETRIES}). Sesión caída.`);
-      this.emit('session:failed', { sessionId, reason: 'max_retries' });
+      console.error(`[Session:${key}] Máximo reintentos (${MAX_RETRIES}). Sesión caída.`);
+      this.emit('session:failed', { tenantId, sessionId, reason: 'max_retries' });
       return;
     }
 
     const delayMs = 3000 * session.retryCount;
     session.status = 'reconnecting';
-    console.log(`[Session:${sessionId}] Reintento ${session.retryCount}/${MAX_RETRIES} en ${delayMs}ms...`);
-    setTimeout(() => this._connect(sessionId), delayMs);
+    console.log(`[Session:${key}] Reintento ${session.retryCount}/${MAX_RETRIES} en ${delayMs}ms...`);
+    setTimeout(() => this._connect(tenantId, sessionId), delayMs);
   }
 
-  async removeSession(sessionId) {
-    const session = this.sessions.get(sessionId);
+  async removeSession(tenantId, sessionId) {
+    const key = this._key(tenantId, sessionId);
+    const session = this.sessions.get(key);
     if (!session) throw new Error(`Sesión '${sessionId}' no encontrada`);
 
     try {
       if (session.sock) await session.sock.logout();
     } catch (_) { /* ignorar errores de logout */ }
 
-    // Limpiar del índice de teléfonos
-    if (session.phone) this._phoneIndex.delete(session.phone);
+    if (session.phone) this._phoneMap(tenantId).delete(session.phone);
 
-    // Solo borra la carpeta de ESTA sesión, nunca las demás
-    const authDir = path.join(AUTH_BASE_DIR, sessionId);
+    // Solo borra la carpeta de ESTA sesión de ESTE tenant
+    const authDir = this._authDir(tenantId, sessionId);
     fs.rmSync(authDir, { recursive: true, force: true });
-    this.sessions.delete(sessionId);
-    this.emit('session:removed', { sessionId });
+    this.sessions.delete(key);
+    this.emit('session:removed', { tenantId, sessionId });
   }
 
-  getSession(sessionId) {
-    return this.sessions.get(sessionId) || null;
+  getSession(tenantId, sessionId) {
+    return this.sessions.get(this._key(tenantId, sessionId)) || null;
   }
 
-  getAllSessions() {
+  /** Estado de TODAS las sesiones de un tenant: { sessionId: {state} }. */
+  getAllSessions(tenantId) {
     const result = {};
-    for (const [id, s] of this.sessions) {
-      result[id] = {
+    for (const s of this.sessions.values()) {
+      if (s.tenantId != tenantId) continue; // eslint-disable-line eqeqeq
+      result[s.sessionId] = {
         status: s.status,
         isReady: s.isReady,
         hasQR: !!s.qrCode,
@@ -248,58 +279,70 @@ class SessionManager extends EventEmitter {
     return result;
   }
 
+  /** Cuántas sesiones tiene registradas el tenant (para el tope max_sessions). */
+  countSessions(tenantId) {
+    let n = 0;
+    for (const s of this.sessions.values()) if (s.tenantId == tenantId) n++; // eslint-disable-line eqeqeq
+    return n;
+  }
+
   /**
-   * Round-robin global: elige entre TODAS las sesiones listas y no ocupadas.
+   * Round-robin entre las sesiones LISTAS y libres DEL TENANT indicado.
    * Se usa cuando el grupo no tiene pool asignado.
    */
-  getNextAvailableSession() {
-    const ready = [...this.sessions.entries()]
-      .filter(([, s]) => s.isReady && s.status === 'ready' && !s.isBusy)
-      .map(([id]) => id);
+  getNextAvailableSession(tenantId) {
+    const ready = [...this.sessions.values()]
+      .filter(s => s.tenantId == tenantId && s.isReady && s.status === 'ready' && !s.isBusy) // eslint-disable-line eqeqeq
+      .map(s => s.sessionId);
 
-    if (ready.length === 0) return null;
-
-    const idx = this._rrIndex % ready.length;
-    this._rrIndex = (this._rrIndex + 1 >= Number.MAX_SAFE_INTEGER) ? 0 : this._rrIndex + 1;
-
-    const sessionId = ready[idx];
-    return { sessionId, ...this.sessions.get(sessionId) };
+    return this._pickRoundRobin(tenantId, ready);
   }
 
   /**
-   * Round-robin dentro de un pool: solo elige entre las sesiones
-   * del pool que estén listas Y no ocupadas en este momento.
-   * Si ninguna está libre, devuelve null → el job se reintentará.
+   * Round-robin dentro de un pool del tenant: solo sesiones del pool que
+   * estén listas y libres en este momento.
    */
-  getNextAvailableSessionFromPool(sessionIds = []) {
-    const ready = [...this.sessions.entries()]
-      .filter(([id, s]) => sessionIds.includes(id) && s.isReady && s.status === 'ready' && !s.isBusy)
-      .map(([id]) => id);
+  getNextAvailableSessionFromPool(tenantId, sessionIds = []) {
+    const ready = [...this.sessions.values()]
+      .filter(s => s.tenantId == tenantId && sessionIds.includes(s.sessionId) // eslint-disable-line eqeqeq
+                && s.isReady && s.status === 'ready' && !s.isBusy)
+      .map(s => s.sessionId);
 
-    if (ready.length === 0) return null;
-
-    const idx = this._rrIndex % ready.length;
-    this._rrIndex = (this._rrIndex + 1 >= Number.MAX_SAFE_INTEGER) ? 0 : this._rrIndex + 1;
-
-    const sessionId = ready[idx];
-    return { sessionId, ...this.sessions.get(sessionId) };
+    return this._pickRoundRobin(tenantId, ready);
   }
 
-  /**
-   * Marca una sesión como ocupada (en uso por el worker).
-   * Evita que otro job concurrente la tome al mismo tiempo.
-   */
-  acquireSession(sessionId) {
-    const session = this.sessions.get(sessionId);
+  _pickRoundRobin(tenantId, readyIds) {
+    if (readyIds.length === 0) return null;
+    const idx = this._rrIndex % readyIds.length;
+    this._rrIndex = (this._rrIndex + 1 >= Number.MAX_SAFE_INTEGER) ? 0 : this._rrIndex + 1;
+    const sessionId = readyIds[idx];
+    return { sessionId, ...this.sessions.get(this._key(tenantId, sessionId)) };
+  }
+
+  /** Marca una sesión como ocupada (en uso por el worker). */
+  acquireSession(tenantId, sessionId) {
+    const session = this.sessions.get(this._key(tenantId, sessionId));
     if (session) session.isBusy = true;
   }
 
-  /**
-   * Libera una sesión cuando el worker termina el job (éxito o error).
-   */
-  releaseSession(sessionId) {
-    const session = this.sessions.get(sessionId);
+  /** Libera una sesión cuando el worker termina el job. */
+  releaseSession(tenantId, sessionId) {
+    const session = this.sessions.get(this._key(tenantId, sessionId));
     if (session) session.isBusy = false;
+  }
+
+  /** Lista de IDs de sesión registradas de un tenant (listas o no). */
+  listSessionIds(tenantId) {
+    return [...this.sessions.values()]
+      .filter(s => s.tenantId == tenantId) // eslint-disable-line eqeqeq
+      .map(s => s.sessionId);
+  }
+
+  /** Total de sesiones listas en TODO el sistema (para concurrencia del worker). */
+  countReadyGlobal() {
+    let n = 0;
+    for (const s of this.sessions.values()) if (s.isReady && s.status === 'ready') n++;
+    return n;
   }
 }
 

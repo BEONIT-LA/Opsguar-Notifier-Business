@@ -1,7 +1,17 @@
 const express = require('express');
 const router  = express.Router();
 const ctrl    = require('../controllers/whatsappController');
+const meCtrl  = require('../controllers/meController');
+const { requireJwt } = require('../middleware/tenantContext');
 const { uploadSend } = require('../middleware/uploadMiddleware');
+
+// ─── Workspace del responsable ────────────────────────────────
+router.get('/me', meCtrl.me);
+
+// Gestión de tokens de API (solo desde el panel, no con token de API)
+router.get('/tokens',        requireJwt, meCtrl.listTokens);
+router.post('/tokens',       requireJwt, meCtrl.createToken);
+router.delete('/tokens/:id', requireJwt, meCtrl.revokeToken);
 
 // ─── Sesiones ─────────────────────────────────────────────────
 router.get('/sessions', ctrl.listSessions);

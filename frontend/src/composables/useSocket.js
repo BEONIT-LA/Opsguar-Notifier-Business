@@ -8,7 +8,12 @@ let socket = null
 
 export function useSocket() {
   if (!socket) {
-    socket = io({ transports: ['websocket'] })
+    // El backend autentica el handshake con el JWT y une el socket a la
+    // room "tenant:{id}" de la empresa — así solo recibe sus propios eventos.
+    socket = io({
+      transports: ['websocket'],
+      auth: { token: localStorage.getItem('token') },
+    })
 
     socket.on('connect', () => {
       console.log('[Socket] Conectado ✓', socket.id)

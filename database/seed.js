@@ -35,7 +35,7 @@ async function seed() {
 
     const result = await pool.query(
       `INSERT INTO users (username, password, role, first_name, last_name, email)
-       VALUES ($1, $2, 'admin', $3, $4, $5)
+       VALUES ($1, $2, 'superadmin', $3, $4, $5)
        ON CONFLICT (username)
        DO UPDATE SET password = EXCLUDED.password, first_name = EXCLUDED.first_name,
                      last_name = EXCLUDED.last_name, email = EXCLUDED.email, updated_at = NOW()
