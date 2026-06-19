@@ -1,0 +1,95 @@
+zabbix_export:
+  version: '7.0'
+  media_types:
+    - name: 'Opsguar-Notifier Business (WhatsApp)'
+      type: WEBHOOK
+      parameters:
+        - name: URL
+          value: 'https://notificaciones.beonit.la/api/send'
+        - name: Token
+          value: '<PEGA_AQUI_TU_TOKEN_ogt>'
+        - name: GroupId
+          value: '{ALERT.SENDTO}'
+        - name: Subject
+          value: '{ALERT.SUBJECT}'
+        - name: Message
+          value: '{ALERT.MESSAGE}'
+        - name: HTTPProxy
+          value: ''
+      max_sessions: '1'
+      attempts: '3'
+      attempt_interval: 10s
+      script: |
+        // Opsguar-Notifier Business — webhook WhatsApp (ES5 / Duktape).
+        var OpsguarNotifier = {
+            send: function (url, token, groupId, text, proxy) {
+                var request = new HttpRequest();
+                request.addHeader('Content-Type: application/json');
+                request.addHeader('Authorization: Bearer ' + token);
+                if (proxy) {
+                    request.setProxy(proxy);
+                }
+                var payload = JSON.stringify({ groupId: groupId, text: text });
+                Zabbix.log(4, '[Opsguar-Notifier] POST ' + url + ' payload=' + payload);
+                var response = request.post(url, payload);
+                var status = request.getStatus();
+                Zabbix.log(4, '[Opsguar-Notifier] respuesta HTTP ' + status + ': ' + response);
+                var parsed = null;
+                try { parsed = JSON.parse(response); } catch (e) { parsed = null; }
+                if (status !== 200 && status !== 201 && status !== 202) {
+                    var detail = (parsed && parsed.message) ? parsed.message : response;
+                    if (status === 402) { detail = 'Cuota de mensajes agotada. ' + detail; }
+                    if (status === 403) { detail = 'Empresa suspendida o vigencia expirada. ' + detail; }
+                    if (status === 401) { detail = 'Token de API invalido o revocado. ' + detail; }
+                    throw 'HTTP ' + status + ' - ' + detail;
+                }
+                return parsed;
+            }
+        };
+        try {
+            var params = JSON.parse(value);
+            if (!params.URL)     { throw 'Falta el parametro "URL".'; }
+            if (!params.Token)   { throw 'Falta el parametro "Token" (ogt_...).'; }
+            if (!params.GroupId) { throw 'Destino vacio: configura el "Send to" del medio con el JID del grupo de WhatsApp.'; }
+            var text = '';
+            if (params.Subject) { text += params.Subject; }
+            if (params.Message) { text += (text ? '\n\n' : '') + params.Message; }
+            if (!text) { throw 'No hay contenido para enviar (Subject/Message vacios).'; }
+            OpsguarNotifier.send(params.URL, params.Token, params.GroupId, text, params.HTTPProxy);
+            return 'OK';
+        }
+        catch (error) {
+            Zabbix.log(3, '[Opsguar-Notifier] Error: ' + error);
+            throw 'Envio fallido: ' + error;
+        }
+      description: |
+        Envia notificaciones a un grupo de WhatsApp a traves de Opsguar-Notifier Business (POST /api/send).
+        El campo "Send to" del medio del usuario debe contener el JID del grupo de WhatsApp (ej: 120363xxxxxxxxx@g.us).
+        Genera el token de API (ogt_...) en el panel del responsable -> pestana API, y pegalo en el parametro Token.
+      message_templates:
+        - event_source: TRIGGERS
+          operation_mode: PROBLEM
+          subject: '🔴 {EVENT.SEVERITY}: {EVENT.NAME}'
+          message: |
+            Host: {HOST.NAME} ({HOST.IP})
+            Inicio: {EVENT.TIME} {EVENT.DATE}
+            Severidad: {EVENT.SEVERITY}
+            Estado: {EVENT.STATUS}
+            ID del evento: {EVENT.ID}
+        - event_source: TRIGGERS
+          operation_mode: RECOVERY
+          subject: '✅ Resuelto: {EVENT.NAME}'
+          message: |
+            Host: {HOST.NAME} ({HOST.IP})
+            Resuelto: {EVENT.RECOVERY.TIME} {EVENT.RECOVERY.DATE}
+            Duracion: {EVENT.DURATION}
+            ID del evento: {EVENT.ID}
+        - event_source: TRIGGERS
+          operation_mode: UPDATE
+          subject: '✏️ Actualizacion: {EVENT.NAME}'
+          message: |
+            {USER.FULLNAME} {EVENT.UPDATE.ACTION} el problema.
+            {EVENT.UPDATE.MESSAGE}
+
+            Host: {HOST.NAME}
+            Severidad actual: {EVENT.SEVERITY}
