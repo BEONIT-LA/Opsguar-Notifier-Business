@@ -300,7 +300,7 @@ onMounted(load)
   box-shadow: 0 1px 2px rgba(30,58,95,0.04);
 }
 .logo { display: flex; align-items: center; gap: 0.7rem; }
-.logo-img { height: 26px; width: auto; display: block; flex-shrink: 0; }
+.logo-img { height: 30px; width: auto; display: block; flex-shrink: 0; }
 .logo-tenant { display: flex; flex-direction: column; padding-left: 0.7rem; border-left: 1px solid var(--border); }
 .logo-tenant-label { font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
 .logo-sub  { font-size: 0.72rem; font-weight: 600; color: var(--text); }
