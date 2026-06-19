@@ -4,19 +4,13 @@
     <div class="logo">
       <div class="logo-icon">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z" fill="url(#sh2)" />
-          <circle cx="12" cy="12" r="3" fill="white" opacity="0.9"/>
-          <defs>
-            <linearGradient id="sh2" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#1a85fb"/>
-              <stop offset="100%" stop-color="#3bd1ff"/>
-            </linearGradient>
-          </defs>
+          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z" fill="#fff" opacity="0.95"/>
+          <circle cx="12" cy="12" r="3" fill="#2f6fd0"/>
         </svg>
       </div>
       <div>
-        <div class="logo-text">OPSGUARD</div>
-        <div class="logo-sub">{{ auth.tenant?.name || 'Notificaciones WhatsApp' }}</div>
+        <div class="logo-text">BE ON IT</div>
+        <div class="logo-sub">{{ auth.tenant?.name || 'OpsGuard SaaS' }}</div>
       </div>
     </div>
 
@@ -303,31 +297,31 @@ onUnmounted(() => {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--header-h);
-  background: rgba(10, 13, 18, 0.80);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid rgba(26,133,251,0.10);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
   display: flex; align-items: center;
   padding: 0 1.5rem; gap: 0.75rem;
   z-index: 100;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+  box-shadow: 0 1px 2px rgba(30,58,95,0.04);
 }
 
-/* Línea aurora en el borde inferior del header */
+/* Línea de marca en el borde inferior del header */
 .header::after {
   content: '';
   position: absolute;
   bottom: 0; left: 5%; right: 5%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(26,133,251,0.4), rgba(124,58,237,0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(40,182,201,0.45), rgba(47,111,208,0.4), transparent);
 }
 
 .logo { display: flex; align-items: center; gap: 0.6rem; }
 .logo-icon {
   width: 32px; height: 32px;
-  background: var(--accent-muted); border: 1px solid var(--border-hi);
-  border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; box-shadow: 0 0 18px rgba(26,133,251,0.40);
+  background: var(--grad); border: none;
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; box-shadow: 0 4px 10px -4px rgba(43,88,192,0.45);
 }
 .logo-text { font-size: 0.88rem; font-weight: 700; color: var(--text); letter-spacing: 0.08em; }
 .logo-sub  { font-size: 0.63rem; color: var(--text-dim); font-family: var(--font-mono); letter-spacing: 0.04em; }
@@ -345,9 +339,9 @@ onUnmounted(() => {
 .nav-btn:hover  { color: var(--text); background: var(--bg3); }
 .nav-btn.active {
   color: #fff;
-  background: linear-gradient(135deg, rgba(26,133,251,0.25), rgba(124,58,237,0.20));
-  border: 1px solid rgba(26,133,251,0.25);
-  box-shadow: 0 2px 12px rgba(26,133,251,0.15);
+  background: var(--grad);
+  border: none;
+  box-shadow: 0 4px 12px -4px rgba(43,88,192,0.45);
 }
 
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }

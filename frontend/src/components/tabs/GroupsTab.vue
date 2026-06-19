@@ -241,7 +241,7 @@ async function viewDetail(groupId) {
 .groups-table th { padding: 0.65rem 1rem; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; text-align: left; border-bottom: 1px solid var(--border); }
 .groups-table td { padding: 0.65rem 1rem; font-size: 0.83rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .groups-table tr:last-child td { border-bottom: none; }
-.groups-table tr:hover td { background: rgba(26,133,251,0.04); }
+.groups-table tr:hover td { background: rgba(47,111,208,0.05); }
 
 .g-name  { font-weight: 500; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-id    { font-size: 0.75rem; color: var(--cyan); font-family: monospace; }

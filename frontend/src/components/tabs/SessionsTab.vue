@@ -310,7 +310,7 @@ async function showQR(id) {
   display: flex; flex-direction: column; gap: 0.75rem;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.session-card:hover { box-shadow: 0 0 0 1px var(--border-hi), 0 4px 20px rgba(26,133,251,0.08); }
+.session-card:hover { box-shadow: 0 0 0 1px var(--border-hi), 0 6px 20px -8px rgba(47,111,208,0.18); }
 .session-card.ready { border-color: rgba(52,211,153,0.3); }
 .session-card.ready:hover { box-shadow: 0 0 0 1px rgba(52,211,153,0.4), 0 4px 20px rgba(52,211,153,0.08); }
 .session-card.error { border-color: rgba(248,113,113,0.3); }

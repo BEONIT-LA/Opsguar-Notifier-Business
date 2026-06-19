@@ -53,9 +53,10 @@ const feed = useLiveFeedStore()
   position: fixed;
   bottom: 0; left: 0; right: 0;
   z-index: 90;
-  background: rgba(22,27,38,0.97);
-  border-top: 1px solid var(--border-hi);
+  background: rgba(255,255,255,0.97);
+  border-top: 1px solid var(--border);
   backdrop-filter: blur(12px);
+  box-shadow: 0 -8px 24px -16px rgba(30,58,95,0.25);
   transition: height 0.2s ease;
 }
 
@@ -136,10 +137,10 @@ const feed = useLiveFeedStore()
   padding: 0.22rem 1.25rem;
   font-size: 0.76rem;
   font-family: var(--font-mono);
-  border-bottom: 1px solid rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
   transition: background 0.1s;
 }
-.feed-entry:hover { background: rgba(255,255,255,0.025); }
+.feed-entry:hover { background: var(--bg3); }
 
 .entry-time {
   color: var(--text-muted);

@@ -272,7 +272,7 @@ async function sendMessage() {
 
 /* Nota combinaciones */
 .combo-info {
-  background: rgba(255,255,255,0.03);
+  background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.75rem 0.9rem;
