@@ -9,18 +9,10 @@
 
     <div class="login-card">
 
-      <!-- Marca Be On It -->
+      <!-- Marca Be On It (logo oficial apilado) -->
       <div class="login-brand">
-        <div class="brand-mark">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z" fill="#fff" opacity="0.95"/>
-            <circle cx="12" cy="12" r="3" fill="#2f6fd0"/>
-          </svg>
-        </div>
-        <div class="brand-text">
-          <div class="brand-name">Be On It</div>
-          <div class="brand-sub">OpsGuard SaaS</div>
-        </div>
+        <img src="/brand/beonit-stacked.png" alt="Be On It" class="brand-logo" />
+        <div class="brand-sub">OpsGuard SaaS</div>
       </div>
 
       <h2 class="login-title">Iniciar sesión</h2>
@@ -151,15 +143,9 @@ async function handleLogin() {
   backdrop-filter: blur(8px);
 }
 
-.login-brand { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.5rem; }
-.brand-mark {
-  width: 44px; height: 44px; border-radius: 13px;
-  display: grid; place-items: center;
-  background: var(--grad, linear-gradient(145deg,#28b6c9,#2b58c0));
-  box-shadow: 0 8px 18px -6px rgba(43,88,192,0.55);
-}
-.brand-name { font-size: 1.05rem; font-weight: 700; color: var(--ink, #22303c); letter-spacing: -0.01em; }
-.brand-sub  { font-size: 0.7rem; color: var(--muted, #5d6b7c); font-family: var(--font-mono); letter-spacing: 0.02em; }
+.login-brand { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; margin-bottom: 1.5rem; }
+.brand-logo { width: 132px; height: auto; display: block; }
+.brand-sub  { font-size: 0.72rem; color: var(--muted, #5d6b7c); font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
 
 .login-title { font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
 .login-desc  { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1.5rem; }

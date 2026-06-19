@@ -1,15 +1,10 @@
 <template>
   <header class="header">
-    <!-- Logo -->
+    <!-- Logo oficial Be On It (horizontal) -->
     <div class="logo">
-      <div class="logo-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z" fill="#fff" opacity="0.95"/>
-          <circle cx="12" cy="12" r="3" fill="#2f6fd0"/>
-        </svg>
-      </div>
-      <div>
-        <div class="logo-text">BE ON IT</div>
+      <img src="/brand/beonit-horizontal.png" alt="Be On It" class="logo-img" />
+      <div class="logo-tenant">
+        <div class="logo-tenant-label">Workspace</div>
         <div class="logo-sub">{{ auth.tenant?.name || 'OpsGuard SaaS' }}</div>
       </div>
     </div>
@@ -316,15 +311,11 @@ onUnmounted(() => {
   background: linear-gradient(90deg, transparent, rgba(40,182,201,0.45), rgba(47,111,208,0.4), transparent);
 }
 
-.logo { display: flex; align-items: center; gap: 0.6rem; }
-.logo-icon {
-  width: 32px; height: 32px;
-  background: var(--grad); border: none;
-  border-radius: 9px; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; box-shadow: 0 4px 10px -4px rgba(43,88,192,0.45);
-}
-.logo-text { font-size: 0.88rem; font-weight: 700; color: var(--text); letter-spacing: 0.08em; }
-.logo-sub  { font-size: 0.63rem; color: var(--text-dim); font-family: var(--font-mono); letter-spacing: 0.04em; }
+.logo { display: flex; align-items: center; gap: 0.7rem; }
+.logo-img { height: 26px; width: auto; display: block; flex-shrink: 0; }
+.logo-tenant { display: flex; flex-direction: column; padding-left: 0.7rem; border-left: 1px solid var(--border); }
+.logo-tenant-label { font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.logo-sub  { font-size: 0.72rem; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
 
 .header-sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.25rem; flex-shrink: 0; }
 

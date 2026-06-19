@@ -3,9 +3,9 @@
     <!-- ── Header ── -->
     <header class="ad-header">
       <div class="logo">
-        <div class="logo-icon">🛡️</div>
-        <div>
-          <div class="logo-text">OPSGUARD · SaaS</div>
+        <img src="/brand/beonit-horizontal.png" alt="Be On It" class="logo-img" />
+        <div class="logo-tenant">
+          <div class="logo-tenant-label">OpsGuard SaaS</div>
           <div class="logo-sub">Consola de plataforma</div>
         </div>
       </div>
@@ -299,10 +299,11 @@ onMounted(load)
   border-bottom: 1px solid var(--border);
   box-shadow: 0 1px 2px rgba(30,58,95,0.04);
 }
-.logo { display: flex; align-items: center; gap: 0.6rem; }
-.logo-icon { width: 32px; height: 32px; background: var(--grad); border: none; border-radius: 9px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px -4px rgba(43,88,192,0.45); }
-.logo-text { font-size: 0.88rem; font-weight: 700; letter-spacing: 0.08em; }
-.logo-sub  { font-size: 0.63rem; color: var(--text-dim); font-family: var(--font-mono); }
+.logo { display: flex; align-items: center; gap: 0.7rem; }
+.logo-img { height: 26px; width: auto; display: block; flex-shrink: 0; }
+.logo-tenant { display: flex; flex-direction: column; padding-left: 0.7rem; border-left: 1px solid var(--border); }
+.logo-tenant-label { font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.logo-sub  { font-size: 0.72rem; font-weight: 600; color: var(--text); }
 .ad-header-right { display: flex; align-items: center; gap: 1rem; }
 .who { font-size: 0.78rem; color: var(--text-dim); }
 
