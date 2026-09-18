@@ -113,6 +113,7 @@ class SessionManager extends EventEmitter {
       retryCount: 0,
       phone: null,
       isBusy: false,
+      availableAt: 0, // enfriamiento "modo humano": no se usa antes de esta hora
     });
 
     await this._connect(tenantId, id);
@@ -292,7 +293,7 @@ class SessionManager extends EventEmitter {
    */
   getNextAvailableSession(tenantId) {
     const ready = [...this.sessions.values()]
-      .filter(s => s.tenantId == tenantId && s.isReady && s.status === 'ready' && !s.isBusy) // eslint-disable-line eqeqeq
+      .filter(s => s.tenantId == tenantId && this._isFree(s)) // eslint-disable-line eqeqeq
       .map(s => s.sessionId);
 
     return this._pickRoundRobin(tenantId, ready);
@@ -305,10 +306,15 @@ class SessionManager extends EventEmitter {
   getNextAvailableSessionFromPool(tenantId, sessionIds = []) {
     const ready = [...this.sessions.values()]
       .filter(s => s.tenantId == tenantId && sessionIds.includes(s.sessionId) // eslint-disable-line eqeqeq
-                && s.isReady && s.status === 'ready' && !s.isBusy)
+                && this._isFree(s))
       .map(s => s.sessionId);
 
     return this._pickRoundRobin(tenantId, ready);
+  }
+
+  /** Lista, libre y fuera de su enfriamiento. */
+  _isFree(s) {
+    return s.isReady && s.status === 'ready' && !s.isBusy && (s.availableAt || 0) <= Date.now();
   }
 
   _pickRoundRobin(tenantId, readyIds) {
@@ -325,10 +331,15 @@ class SessionManager extends EventEmitter {
     if (session) session.isBusy = true;
   }
 
-  /** Libera una sesión cuando el worker termina el job. */
-  releaseSession(tenantId, sessionId) {
+  /**
+   * Libera una sesión cuando el worker termina el job. `cooldownMs` la deja
+   * fuera del round-robin ese tiempo (pausa humana entre envíos del número).
+   */
+  releaseSession(tenantId, sessionId, cooldownMs = 0) {
     const session = this.sessions.get(this._key(tenantId, sessionId));
-    if (session) session.isBusy = false;
+    if (!session) return;
+    session.isBusy = false;
+    session.availableAt = Date.now() + Math.max(0, cooldownMs);
   }
 
   /** Lista de IDs de sesión registradas de un tenant (listas o no). */

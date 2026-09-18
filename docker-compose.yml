@@ -58,6 +58,13 @@ services:
       POSTGRES_PASS: ${POSTGRES_PASS:-opsguard2024}
       JWT_SECRET:    ${JWT_SECRET:-cambia_esto_por_una_clave_segura}
       JWT_EXPIRES:   8h
+      # Modo humano: pausa + "escribiendo..." antes de enviar y pausa del número
+      # tras enviar (ver src/services/humanPacing.js). HUMAN_MODE=false lo apaga.
+      HUMAN_MODE:            ${HUMAN_MODE:-true}
+      HUMAN_THINK_MIN_MS:    ${HUMAN_THINK_MIN_MS:-1500}
+      HUMAN_THINK_MAX_MS:    ${HUMAN_THINK_MAX_MS:-5000}
+      HUMAN_COOLDOWN_MIN_MS: ${HUMAN_COOLDOWN_MIN_MS:-4000}
+      HUMAN_COOLDOWN_MAX_MS: ${HUMAN_COOLDOWN_MAX_MS:-12000}
     volumes:
       - sessions_data:/app/auth_sessions
     depends_on:

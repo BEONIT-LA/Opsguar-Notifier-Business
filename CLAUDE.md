@@ -20,6 +20,7 @@ docker run -d --name redis-whatsapp -p 6379:6379 redis:alpine
 - `PORT` — puerto HTTP (default: `3000`)
 - `NODE_ENV` — entorno (default: `development`)
 - `REDIS_URL` — conexión Redis (default: `redis://localhost:6379`)
+- **Modo humano** (`src/services/humanPacing.js`): `HUMAN_MODE` (default `true`), `HUMAN_THINK_MIN/MAX_MS` (1500/5000, pausa antes de escribir), `HUMAN_TYPING_CPS_MIN/MAX` (5/9 caracteres/s), `HUMAN_TYPING_MIN/MAX_MS` (1200/9000), `HUMAN_COOLDOWN_MIN/MAX_MS` (4000/12000, pausa del número tras enviar), `HUMAN_LONG_PAUSE_PCT` (10, % de pausas largas x1.5–2.5)
 
 ## Multi-tenant (OpsGuard SaaS)
 
@@ -73,7 +74,8 @@ Singleton `EventEmitter`. Mantiene un `Map<sessionId, SessionState>`. Al arranca
 ### Queue + Worker
 
 - `src/services/queueService.js` — BullMQ `Queue` "whatsapp-messages", 3 reintentos con backoff exponencial
-- `src/workers/messageWorker.js` — BullMQ `Worker`, concurrency 5, llama `getNextAvailableSession()` por cada job
+- `src/workers/messageWorker.js` — BullMQ `Worker`, concurrencia = sesiones listas, llama `getNextAvailableSession()` por cada job
+- **Modo humano**: cada envío = pausa de reacción → presencia "escribiendo..." proporcional al texto → envío. Al liberar, la sesión queda en enfriamiento (`availableAt`) y el round-robin la salta hasta que pase. Tiempos en campana, con pausas largas ocasionales. Latencia añadida por mensaje ≈ 3–14 s (+ cola si el número está enfriando)
 
 ### Socket.io (`src/socket/socketHandler.js`)
 
