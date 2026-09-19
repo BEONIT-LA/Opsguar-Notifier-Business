@@ -1,0 +1,93 @@
+# OpsGuard WhatsApp Notifier — integrado al Traefik existente (notificaciones.beonit.la)
+# La app NUNCA se escala (1 instancia: WhatsApp permite 1 conexion por numero).
+networks:
+  web:
+    external: true
+  opsguard-internal:
+    driver: bridge
+
+services:
+  postgres:
+    # Postgres oficial, SIN migraciones embebidas: el esquema lo aplica deploy.sh
+    # desde src/database (registro en schema_migrations). Antes era
+    # jeffoisrael/opsguardchannel-db, que en un nodo nuevo sembraba admin/admin123.
+    # Mismo PG 16 + Alpine + en_US.utf8: compatible con el volumen existente.
+    image: postgres:16-alpine
+    container_name: opsguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opsguard
+      POSTGRES_USER: opsguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:?Define POSTGRES_PASS en .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - opsguard-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsguard -d opsguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: opsguard-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    networks:
+      - opsguard-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: opsguar-notifier-business:latest  # Opsguar-Notifier Business (Be On It)
+    pull_policy: never
+    container_name: opsguard-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://opsguard:${POSTGRES_PASS}@postgres:5432/opsguard
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: opsguard
+      POSTGRES_USER: opsguard
+      POSTGRES_PASS: ${POSTGRES_PASS:?Define POSTGRES_PASS en .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      JWT_EXPIRES: 8h
+      # Primer superadmin (sólo si la BD no tiene ninguno). Vacía → clave generada en el log.
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:-}
+    volumes:
+      - sessions_data:/app/auth_sessions
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - web
+      - opsguard-internal
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.routers.opsguard.rule=Host(`notificaciones.beonit.la`)
+      - traefik.http.routers.opsguard.entrypoints=websecure
+      - traefik.http.routers.opsguard.tls=true
+      - traefik.http.routers.opsguard.tls.certresolver=le
+      - traefik.http.services.opsguard.loadbalancer.server.port=3000
+
+volumes:
+  postgres_data:
+  redis_data:
+  sessions_data:
