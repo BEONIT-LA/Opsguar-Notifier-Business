@@ -3,12 +3,11 @@
 #
 # FLUJO:
 #   push a cualquier rama → corre tests
-#   git tag v1.0.0        → construye y sube las 3 imágenes a Docker Hub
+#   git tag v1.0.0        → construye y sube las 3 imágenes a GHCR (ghcr.io/beonit-la)
 #
 # VARIABLES REQUERIDAS (GitLab → Settings → CI/CD → Variables):
-#   DOCKERHUB_USER   → tu usuario de Docker Hub  (jeffoisrael)
-#   DOCKERHUB_TOKEN  → Access Token de Docker Hub (no la contraseña)
-#                      https://hub.docker.com/settings/security
+#   GHCR_USER   → usuario de GitHub con acceso a la org BEONIT-LA
+#   GHCR_TOKEN  → token de GitHub con scope write:packages (guardado en Gravity Ops)
 # ═══════════════════════════════════════════════════════════════
 
 stages:
@@ -16,8 +15,8 @@ stages:
   - build
 
 variables:
-  REGISTRY: jeffoisrael
-  APP_NAME: opsguardchannel
+  REGISTRY: ghcr.io/beonit-la
+  APP_NAME: opsguar-notifier-business
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
 
@@ -48,8 +47,8 @@ test:
   services:
     - docker:26-dind
   before_script:
-    # Login en Docker Hub
-    - echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
+    # Login en GHCR
+    - echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
     # Habilitar builds multi-arquitectura (amd64 + arm64)
     - docker run --rm --privileged tonistiigi/binfmt --install all
     # Crear contexto para compatibilidad con dind + TLS
@@ -66,7 +65,7 @@ build-app:
     - |
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
-        --tag "${REGISTRY}/${APP_NAME}-app:v${VERSION}" \
+        --tag "${REGISTRY}/${APP_NAME}-app:${VERSION}" \
         --tag "${REGISTRY}/${APP_NAME}-app:latest" \
         --cache-from "type=registry,ref=${REGISTRY}/${APP_NAME}-app:latest" \
         --cache-to   "type=inline" \
@@ -80,7 +79,7 @@ build-db:
     - |
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
-        --tag "${REGISTRY}/${APP_NAME}-db:v${VERSION}" \
+        --tag "${REGISTRY}/${APP_NAME}-db:${VERSION}" \
         --tag "${REGISTRY}/${APP_NAME}-db:latest" \
         --cache-from "type=registry,ref=${REGISTRY}/${APP_NAME}-db:latest" \
         --cache-to   "type=inline" \
@@ -94,7 +93,7 @@ build-proxy:
     - |
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
-        --tag "${REGISTRY}/${APP_NAME}-proxy:v${VERSION}" \
+        --tag "${REGISTRY}/${APP_NAME}-proxy:${VERSION}" \
         --tag "${REGISTRY}/${APP_NAME}-proxy:latest" \
         --cache-from "type=registry,ref=${REGISTRY}/${APP_NAME}-proxy:latest" \
         --cache-to   "type=inline" \
