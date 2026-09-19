@@ -86,6 +86,27 @@ describe('POST /api/send — Validación de inputs', () => {
     expect(res.body.data.jobId).toBe('job_123');
   });
 
+  test('✅ x-www-form-urlencoded con solo texto devuelve 202 (MCP de OpsGuard)', async () => {
+    const res = await request(app)
+      .post('/api/send')
+      .set('Authorization', `Bearer ${token}`)
+      .type('form')
+      .send({ groupId: GROUP_ID, text: 'Hola formulario' });
+
+    expect(res.status).toBe(202);
+    expect(res.body.data.jobId).toBe('job_123');
+  });
+
+  test('❌ sin cuerpo devuelve 400, no 500', async () => {
+    const res = await request(app)
+      .post('/api/send')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Content-Type', 'text/plain')
+      .send('x');
+
+    expect(res.status).toBe(400);
+  });
+
   test('✅ multipart/form-data con solo texto devuelve 202', async () => {
     const res = await request(app)
       .post('/api/send')

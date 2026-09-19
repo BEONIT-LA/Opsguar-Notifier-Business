@@ -89,7 +89,7 @@ function getSessionQR(req, res) {
 
 async function sendMessage(req, res) {
   try {
-    const { groupId, text } = req.body;
+    const { groupId, text } = req.body || {};
 
     const imageFile    = req.files?.image?.[0]    || null;
     const documentFile = req.files?.document?.[0] || null;

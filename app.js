@@ -9,6 +9,9 @@ const { requireSuperadmin, requireActiveTenant } = require('./src/middleware/ten
 const app = express();
 
 app.use(express.json());
+// Formularios (x-www-form-urlencoded): p. ej. el MCP de OpsGuard o `curl -d`.
+// Sin esto Express 5 deja req.body undefined y /api/send responde 500.
+app.use(express.urlencoded({ extended: false }));
 
 // ── Archivos estáticos del frontend Vue (compilado con Vite) ──
 app.use(express.static(path.join(__dirname, 'public')));
