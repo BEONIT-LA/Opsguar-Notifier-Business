@@ -5,6 +5,10 @@
 #   POSTGRES_PASS  → contraseña de la base de datos
 #   JWT_SECRET     → cualquier texto largo y secreto
 #
+# Las imágenes se construyen desde este repo (app, BD con migraciones
+# 001-011, nginx). Primera vez o tras cambiar código:
+#   docker compose build
+#
 # INICIAR:   docker compose up -d
 # DETENER:   docker compose down
 # LOGS:      docker compose logs -f app
@@ -14,7 +18,8 @@ services:
 
   # Base de datos — imagen con migraciones incluidas
   postgres:
-    image: jeffoisrael/opsguardchannel-db:latest
+    build: ./database
+    image: opsguar-notifier-business-db:2.0.0
     container_name: opsguard-postgres
     restart: unless-stopped
     environment:
@@ -34,7 +39,7 @@ services:
     image: redis:7-alpine
     container_name: opsguard-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
     volumes:
       - redis_data:/data
     healthcheck:
@@ -45,7 +50,8 @@ services:
 
   # Aplicación principal — Node.js + Vue compilado
   app:
-    image: jeffoisrael/opsguardchannel-app:latest
+    build: .
+    image: opsguar-notifier-business-app:2.0.0
     container_name: opsguard-app
     restart: unless-stopped
     environment:
@@ -58,6 +64,13 @@ services:
       POSTGRES_PASS: ${POSTGRES_PASS:-opsguard2024}
       JWT_SECRET:    ${JWT_SECRET:-cambia_esto_por_una_clave_segura}
       JWT_EXPIRES:   8h
+      # Modo humano: pausa + "escribiendo..." antes de enviar y pausa del número
+      # tras enviar (ver src/services/humanPacing.js). HUMAN_MODE=false lo apaga.
+      HUMAN_MODE:            ${HUMAN_MODE:-true}
+      HUMAN_THINK_MIN_MS:    ${HUMAN_THINK_MIN_MS:-1500}
+      HUMAN_THINK_MAX_MS:    ${HUMAN_THINK_MAX_MS:-5000}
+      HUMAN_COOLDOWN_MIN_MS: ${HUMAN_COOLDOWN_MIN_MS:-4000}
+      HUMAN_COOLDOWN_MAX_MS: ${HUMAN_COOLDOWN_MAX_MS:-12000}
     volumes:
       - sessions_data:/app/auth_sessions
     depends_on:
@@ -74,7 +87,8 @@ services:
 
   # Proxy — nginx con configuración incluida
   nginx:
-    image: jeffoisrael/opsguardchannel-proxy:latest
+    build: ./nginx
+    image: opsguar-notifier-business-proxy:2.0.0
     container_name: opsguard-nginx
     restart: unless-stopped
     ports:
@@ -83,10 +97,10 @@ services:
       - "8080:80"
       - "8443:443"
     volumes:
-      # Certificados SSL — coloca cert.pem y key.pem en ./ssl/
-      - ./ssl:/etc/nginx/ssl:ro
+      # Certificados SSL — coloca cert.pem y key.pem en ./nginx/ssl/
+      - ./nginx/ssl:/etc/nginx/ssl:ro
       # Configuración nginx — se monta para no requerir rebuild de imagen
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       app:
         condition: service_healthy

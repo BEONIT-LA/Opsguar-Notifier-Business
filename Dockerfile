@@ -30,7 +30,9 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 # Dependencias del sistema necesarias para módulos nativos (baileys, etc.)
-RUN apk add --no-cache python3 make g++
+# git: Baileys trae libsignal desde GitHub (git+ssh en el lock); sin claves SSH
+# en el build se reescribe a https.
+RUN apk add --no-cache python3 make g++ git  && git config --global url."https://github.com/".insteadOf ssh://git@github.com/
 
 # Instala solo dependencias de producción
 COPY package*.json ./

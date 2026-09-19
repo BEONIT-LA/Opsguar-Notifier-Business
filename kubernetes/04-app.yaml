@@ -34,6 +34,13 @@ spec:
               value: redis://redis:6379
             - name: JWT_EXPIRES
               value: 8h
+            # Modo humano (ver src/services/humanPacing.js)
+            - name: HUMAN_MODE
+              value: "true"
+            - name: HUMAN_COOLDOWN_MIN_MS
+              value: "4000"
+            - name: HUMAN_COOLDOWN_MAX_MS
+              value: "12000"
             - name: POSTGRES_PASS
               valueFrom:
                 secretKeyRef:

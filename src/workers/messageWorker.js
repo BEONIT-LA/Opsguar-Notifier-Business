@@ -2,7 +2,7 @@ const { Worker, UnrecoverableError } = require('bullmq');
 const IORedis = require('ioredis');
 const path = require('path');
 const fs = require('fs');
-const { delay } = require('@whiskeysockets/baileys');
+const humanPacing = require('../services/humanPacing');
 const sessionManager       = require('../services/sessionManager');
 const { writeEntry }       = require('../services/auditService');
 const { getPoolByGroupId } = require('../services/poolService');
@@ -15,11 +15,6 @@ const connection = new IORedis(redis.url, {
 });
 
 // ── Helpers ───────────────────────────────────────────────────
-
-function randomDelay(min = 3000, max = 6000) {
-  return delay(Math.floor(Math.random() * (max - min + 1)) + min);
-}
-
 
 function esMiembroError(msg = '') {
   return (
@@ -44,7 +39,8 @@ async function waitForSession(tenantId, sessionIds, timeoutMs = 600_000) {
       : sessionManager.getNextAvailableSession(tenantId);
 
     if (session && session.sock) return session;
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Sondeo con jitter: con sesiones en enfriamiento no toman turno en bloque
+    await new Promise(resolve => setTimeout(resolve, 1500 + Math.floor(Math.random() * 1500)));
   }
   return null;
 }
@@ -83,9 +79,9 @@ async function enviarMensajes(sock, groupId, { text, imagePath, documentPath, im
 
   // ── Caso: solo texto (sin archivos) ──────────────────────────
   if (hasText && !hasImage && !hasDocument) {
+    await humanPacing.beforeSend(sock, groupId, text);
     await sock.sendMessage(groupId, { text: text.trim() });
-    await randomDelay(); // frena antes de que la sesión tome el siguiente job
-    return;
+    return; // el enfriamiento de la sesión lo aplica releaseSession
   }
 
   // ── Caso: imagen (con o sin texto como caption) ───────────────
@@ -98,8 +94,9 @@ async function enviarMensajes(sock, groupId, { text, imagePath, documentPath, im
         // Si hay documento también → el texto irá como caption de la imagen igual,
         // así el documento queda libre sin repetir el texto
         if (hasText) msg.caption = text.trim();
+        await humanPacing.beforeSend(sock, groupId, msg.caption);
         await sock.sendMessage(groupId, msg);
-        await randomDelay(3000, 6000);
+        if (hasDocument) await humanPacing.betweenMessages();
       }
     } finally {
       deleteTempFile(imagePath);
@@ -118,8 +115,8 @@ async function enviarMensajes(sock, groupId, { text, imagePath, documentPath, im
         };
         // Si hay texto y NO hubo imagen → el texto va como caption del documento
         if (hasText && !hasImage) msg.caption = text.trim();
+        await humanPacing.beforeSend(sock, groupId, msg.caption);
         await sock.sendMessage(groupId, msg);
-        await randomDelay(); // frena antes de que la sesión tome el siguiente job
       }
     } finally {
       deleteTempFile(documentPath);
@@ -132,7 +129,8 @@ async function enviarMensajes(sock, groupId, { text, imagePath, documentPath, im
 const worker = new Worker(
   'whatsapp-messages',
   async (job) => {
-    const { tenantId, groupId, text, imagePath, documentPath } = job.data;
+    const { tenantId, groupId, text, imagePath, documentPath,
+            imageOriginalName, documentOriginalName } = job.data;
 
     if (!tenantId) {
       throw new UnrecoverableError('Job sin tenantId — no se puede enrutar.');
@@ -189,7 +187,9 @@ const worker = new Worker(
       let noEsMiembro = false;
 
       try {
-        await enviarMensajes(sock, groupId, { text, imagePath, documentPath });
+        await enviarMensajes(sock, groupId, {
+          text, imagePath, documentPath, imageOriginalName, documentOriginalName,
+        });
       } catch (sendErr) {
         if (esMiembroError(sendErr.message)) {
           // Marca esta sesión como fallida para este job y rota a la siguiente
@@ -198,8 +198,10 @@ const worker = new Worker(
           throw sendErr; // error real → BullMQ reintentará normalmente
         }
       } finally {
-        sessionManager.releaseSession(tenantId, sessionId);
-        console.log(`[Worker] Job ${job.id} → sesión "${sessionId}" (liberada)`);
+        // Enfriamiento "modo humano": el número no vuelve a enviar enseguida
+        const cooldown = noEsMiembro ? 0 : humanPacing.cooldownMs();
+        sessionManager.releaseSession(tenantId, sessionId, cooldown);
+        console.log(`[Worker] Job ${job.id} → sesión "${sessionId}" (liberada, pausa ${Math.round(cooldown / 1000)}s)`);
       }
 
       if (noEsMiembro) {
