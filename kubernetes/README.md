@@ -3,13 +3,14 @@
 ## Orden de aplicación
 
 ```bash
-# 1. Configura tus secrets primero (edita 01-secrets.yaml con tus valores en base64)
-echo -n "tu-password" | base64
-echo -n "tu-jwt-secret" | base64
-
-# 2. Aplica el namespace y los secrets
+# 1. Namespace
 kubectl apply -f 00-namespace.yaml
-kubectl apply -f 01-secrets.yaml
+
+# 2. Secrets de la app (valores desde Gravity Ops; nunca en archivos del repo).
+#    Sin defaults: la app NO arranca en producción sin POSTGRES_PASS y un
+#    JWT_SECRET de 32+ caracteres. ADMIN_PASS es opcional (primer superadmin).
+kubectl create secret generic opsguard-secrets -n opsguard   --from-literal=POSTGRES_PASS="$POSTGRES_PASS"   --from-literal=JWT_SECRET="$(openssl rand -hex 32)"   --from-literal=ADMIN_PASS="$ADMIN_PASS"
+#    (alternativa: 01-secrets.yaml.example)
 
 # 3. Credencial para bajar las imágenes privadas de GHCR (ghcr.io/beonit-la).
 #    Token de GitHub con scope read:packages, guardado en Gravity Ops (módulo Vault).
@@ -22,7 +23,8 @@ kubectl apply -f 03-redis.yaml
 kubectl apply -f 04-app.yaml
 kubectl apply -f 05-ingress.yaml
 
-# O aplica todo de una vez (respeta el orden por nombre de archivo)
+# O aplica todo de una vez (respeta el orden por nombre de archivo; el Secret
+# ya debe existir)
 kubectl apply -f .
 ```
 
@@ -48,6 +50,10 @@ kubectl logs -n opsguard deployment/app -f
 ```
 
 ## Notas importantes
+
+- **Primer superadmin**: si la BD no tiene ninguno, la app lo crea al arrancar
+  (`ADMIN_USER`, default `admin`). Sin `ADMIN_PASS` genera una clave aleatoria
+  y la muestra UNA vez: `kubectl logs -n opsguard deployment/app | grep Bootstrap`.
 
 - `replicas: 1` en el app es obligatorio — las sesiones WhatsApp
   no soportan múltiples instancias del mismo número.

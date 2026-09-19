@@ -55,6 +55,13 @@ spec:
                 secretKeyRef:
                   name: opsguard-secrets
                   key: JWT_SECRET
+            # Primer superadmin (opcional: sin ADMIN_PASS se genera y sale en el log)
+            - name: ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: opsguard-secrets
+                  key: ADMIN_PASS
+                  optional: true
           ports:
             - containerPort: 3000
           volumeMounts:

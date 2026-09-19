@@ -11,6 +11,7 @@ pnpm-debug.log*
 # 🗂️ Environment variables
 # ─────────────────────────────
 .env
+kubernetes/01-secrets.yaml
 .env.local
 .env.development.local
 .env.test.local

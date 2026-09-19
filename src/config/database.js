@@ -3,6 +3,15 @@ const { Pool } = require('pg');
 // Forzamos dotenv por si database.js se carga antes que config/index.js
 require('dotenv').config();
 
+/** Sin contraseña por defecto: en producción POSTGRES_PASS es obligatoria. */
+function dbPassword() {
+  const pass = process.env.POSTGRES_PASS;
+  if (!pass && process.env.NODE_ENV === 'production') {
+    throw new Error('Falta POSTGRES_PASS.');
+  }
+  return pass || '';
+}
+
 /**
  * Pool de conexiones a PostgreSQL.
  * Usamos parámetros individuales (no connectionString) para evitar
@@ -14,7 +23,7 @@ const pool = new Pool({
   port:     parseInt(process.env.POSTGRES_PORT || '5432', 10),
   database: process.env.POSTGRES_DB   || 'opsguard',
   user:     process.env.POSTGRES_USER || 'opsguard',
-  password: String(process.env.POSTGRES_PASS || 'opsguard2024'), // String() garantiza que nunca sea undefined
+  password: String(dbPassword()), // String() garantiza que nunca sea undefined
   max:                 10,
   idleTimeoutMillis:   30000,
   connectionTimeoutMillis: 5000,
