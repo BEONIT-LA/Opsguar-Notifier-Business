@@ -8,7 +8,8 @@ const path = require('path');
 const vm   = require('vm');
 
 const DIR    = path.join(__dirname, '../integrations/zabbix');
-const SCRIPT = fs.readFileSync(path.join(DIR, 'webhook.js'), 'utf8');
+// Normaliza CRLF (checkout en Windows) para comparar con el YAML.
+const SCRIPT = fs.readFileSync(path.join(DIR, 'webhook.js'), 'utf8').replace(/\r\n/g, '\n');
 const YAML   = fs.readFileSync(path.join(DIR, 'mediatype-opsguar-notifier-business.yaml'), 'utf8');
 
 /** Bloque literal `script: |` del YAML, sin la sangría de 8 espacios. */
