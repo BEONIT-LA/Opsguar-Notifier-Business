@@ -24,9 +24,11 @@ spec:
       labels:
         app: opsguard-app
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull   # imagen privada en GHCR (ver README)
       containers:
         - name: app
-          image: jeffoisrael/opsguardchannel-app:latest
+          image: ghcr.io/beonit-la/opsguar-notifier-business-app:2.0.0
           env:
             - name: NODE_ENV
               value: production

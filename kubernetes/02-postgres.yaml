@@ -24,9 +24,11 @@ spec:
       labels:
         app: postgres
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull   # imagen privada en GHCR (ver README)
       containers:
         - name: postgres
-          image: jeffoisrael/opsguard-db:latest
+          image: ghcr.io/beonit-la/opsguar-notifier-business-db:2.0.0
           env:
             - name: POSTGRES_DB
               value: opsguard

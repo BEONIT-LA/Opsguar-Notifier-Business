@@ -19,7 +19,7 @@ services:
   # Base de datos — imagen con migraciones incluidas
   postgres:
     build: ./database
-    image: opsguar-notifier-business-db:2.0.0
+    image: ghcr.io/beonit-la/opsguar-notifier-business-db:2.0.0
     container_name: opsguard-postgres
     restart: unless-stopped
     environment:
@@ -51,7 +51,7 @@ services:
   # Aplicación principal — Node.js + Vue compilado
   app:
     build: .
-    image: opsguar-notifier-business-app:2.0.0
+    image: ghcr.io/beonit-la/opsguar-notifier-business-app:2.0.0
     container_name: opsguard-app
     restart: unless-stopped
     environment:
@@ -88,7 +88,7 @@ services:
   # Proxy — nginx con configuración incluida
   nginx:
     build: ./nginx
-    image: opsguar-notifier-business-proxy:2.0.0
+    image: ghcr.io/beonit-la/opsguar-notifier-business-proxy:2.0.0
     container_name: opsguard-nginx
     restart: unless-stopped
     ports:
