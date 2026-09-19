@@ -1,0 +1,3 @@
+# Scripts y archivos de despliegue siempre con LF (se ejecutan en Linux)
+*.sh text eol=lf
+deploy/** text eol=lf
