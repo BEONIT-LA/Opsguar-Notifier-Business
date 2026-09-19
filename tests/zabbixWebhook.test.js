@@ -99,9 +99,16 @@ describe('Media Type Zabbix — comportamiento', () => {
     expect(r.error).toContain(texto);
   });
 
-  test('macro de token sin definir → error claro, no llama a la API', () => {
+  test('macro sin resolver (botón Test) → explica que se pegue el token, no llama a la API', () => {
     const r = run({ ...OK_PARAMS, Token: '{$OPSGUARD.TOKEN}' });
-    expect(r.error).toContain('{$OPSGUARD.TOKEN}');
+    expect(r.error).toContain('{$OPSGUARD.TOKEN} sin resolver');
+    expect(r.error).toContain('boton Test');
+    expect(r.calls.url).toBeNull();
+  });
+
+  test('token vacío → pide definir la macro', () => {
+    const r = run({ ...OK_PARAMS, Token: '' });
+    expect(r.error).toContain('Token vacio');
     expect(r.calls.url).toBeNull();
   });
 

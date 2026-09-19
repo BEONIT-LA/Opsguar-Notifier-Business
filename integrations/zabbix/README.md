@@ -76,9 +76,13 @@ Reintentos: 3 cada 10 s. `max_sessions: 1` es suficiente: la API sólo encola y 
 
 ## Probar
 
-- Media Type → **Test**: `Send to` = JID del grupo, un `Subject`/`Message` de prueba.
-  Si el diálogo no resuelve la macro, pega el token directamente en el campo `Token`
-  **sólo en el diálogo de prueba**. Esperado: `OK (job N)` y el mensaje en el grupo.
+- Media Type → **Test**: el diálogo **no expande macros** (verificado en Zabbix 8.0):
+  en el campo `Token` sustituye `{$OPSGUARD.TOKEN}` por el token `ogt_...` (sólo se usa
+  en esa prueba, no se guarda). `GroupId` = sólo el JID (`120363xxxxxxxxx@g.us`, sin
+  texto extra). Esperado: `OK (job N)` y el mensaje en el grupo.
+- En alertas reales el servidor sí resuelve la macro global secreta. Para probar ese
+  camino completo: una acción con un trigger de prueba (o *Problems → Execute now* en un
+  item que dispare) hacia un usuario con este medio.
 - Por consola (el token desde una variable, no escrito en el comando):
 
 ```bash
@@ -110,7 +114,8 @@ Medido en producción: **13–15 s** de la cola al envío.
 
 | Síntoma (Action log) | Causa |
 |---|---|
-| `Token sin configurar ... {$OPSGUARD.TOKEN}` | Falta la macro global o está mal escrita |
+| `Macro {$OPSGUARD.TOKEN} sin resolver` | En el botón Test: normal, pega el token en el campo. En una alerta real: la macro global no existe o el nombre no coincide |
+| `Token vacio` | El parámetro `Token` está vacío |
 | `HTTP 401` | Token inválido o revocado → genera otro y actualiza la macro |
 | `HTTP 402` | Cuota del tenant agotada |
 | `HTTP 403` | Tenant suspendido o fuera de vigencia |
