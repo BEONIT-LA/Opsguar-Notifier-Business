@@ -40,8 +40,15 @@ zabbix_export:
                 if (!params.URL || params.URL.indexOf('http') !== 0) {
                     throw 'Parametro "URL" vacio o invalido.';
                 }
-                if (!params.Token || params.Token.indexOf('{$') === 0 || params.Token.indexOf('<') === 0) {
-                    throw 'Token sin configurar: define la macro global secreta {$OPSGUARD.TOKEN} con el token ogt_...';
+                if (params.Token && params.Token.indexOf('{$') === 0) {
+                    // En el boton Test Zabbix no expande macros; en alertas reales, si la
+                    // macro global no existe, tambien llega sin resolver.
+                    throw 'Macro ' + params.Token + ' sin resolver. En el boton Test pega el token ogt_... ' +
+                          'en el campo Token (Zabbix no expande macros ahi). En alertas reales: revisa que la ' +
+                          'macro global exista con ese nombre exacto.';
+                }
+                if (!params.Token || params.Token.indexOf('<') === 0) {
+                    throw 'Token vacio: define la macro global secreta {$OPSGUARD.TOKEN} con el token ogt_...';
                 }
                 if (!params.GroupId || params.GroupId.indexOf('{ALERT.') === 0) {
                     throw 'Destino vacio: el "Send to" del medio del usuario debe ser el JID del grupo (120363xxxxxxxxx@g.us).';
