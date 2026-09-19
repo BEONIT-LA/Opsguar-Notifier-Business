@@ -16,6 +16,7 @@ console.error = (...args) => {
 const { port, env } = require('./src/config/index');
 const sessionManager = require('./src/services/sessionManager');
 const { initSocketHandler } = require('./src/socket/socketHandler');
+const { ensureSuperadmin } = require('./src/services/bootstrapAdmin');
 
 // Inicia el worker de BullMQ (escucha la cola Redis)
 require('./src/workers/messageWorker');
@@ -53,6 +54,18 @@ async function startServer() {
   });
 
   initSocketHandler(io);
+
+  // Primer superadmin sin contraseñas fijas (ver src/services/bootstrapAdmin.js).
+  // Si ADMIN_PASS es inválida se aborta: mejor no arrancar que quedar abierto.
+  try {
+    await ensureSuperadmin();
+  } catch (err) {
+    if (/ADMIN_(PASS|USER)|ya existe/.test(err.message)) {
+      console.error('[Bootstrap]', err.message);
+      process.exit(1);
+    }
+    console.error('[Bootstrap] No se pudo verificar el superadmin:', err.message);
+  }
 
   // Restaura sesiones guardadas en auth_sessions/
   await sessionManager.initializeSessions();

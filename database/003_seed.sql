@@ -1,14 +1,11 @@
 -- ─────────────────────────────────────────────────────────────
 -- 003: Datos iniciales
--- ⚠ Este hash corresponde a la contraseña: admin123
--- Cámbiala desde el sistema después del primer login
--- Hash generado con bcrypt, 12 rounds
+--
+-- Ya NO se crea ningún usuario con contraseña fija (antes admin/admin123,
+-- que la migración 007 promovía a superadmin).
+-- El primer superadmin lo crea la app al arrancar (src/services/bootstrapAdmin.js)
+-- con ADMIN_USER/ADMIN_PASS, o con una contraseña aleatoria mostrada en el log.
+-- Se mantiene el archivo para no alterar el orden de migraciones.
 -- ─────────────────────────────────────────────────────────────
 
-INSERT INTO users (username, password, role)
-VALUES (
-  'admin',
-  '$2b$12$yj9qxFid2GZjgAI1FDSr0.Ji6SqsbK4qrmiGlSVJkU1wBdS54BqAO',
-  'admin'
-)
-ON CONFLICT (username) DO NOTHING;
+SELECT 1;

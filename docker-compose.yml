@@ -1,9 +1,10 @@
 # ═══════════════════════════════════════════════════════════════
 # OpsGuard WhatsApp Notifications
 #
-# ANTES DE INICIAR — edita estas variables:
-#   POSTGRES_PASS  → contraseña de la base de datos
-#   JWT_SECRET     → cualquier texto largo y secreto
+# ANTES DE INICIAR — copia .env.example a .env y rellena (valores desde Gravity Ops):
+#   POSTGRES_PASS  → contraseña de la base de datos        (obligatoria)
+#   JWT_SECRET     → openssl rand -hex 32                    (obligatoria, 32+ caracteres)
+#   ADMIN_PASS     → clave del primer superadmin (opcional; si falta se genera y sale en el log)
 #
 # Las imágenes se construyen desde este repo (app, BD con migraciones
 # 001-011, nginx). Primera vez o tras cambiar código:
@@ -25,7 +26,7 @@ services:
     environment:
       POSTGRES_DB:       opsguard
       POSTGRES_USER:     opsguard
-      POSTGRES_PASSWORD: ${POSTGRES_PASS:-opsguard2024}
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:?Define POSTGRES_PASS en .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -57,12 +58,14 @@ services:
     environment:
       NODE_ENV:      production
       REDIS_URL:     redis://redis:6379
-      DATABASE_URL:  postgresql://opsguard:${POSTGRES_PASS:-opsguard2024}@postgres:5432/opsguard
+      DATABASE_URL:  postgresql://opsguard:${POSTGRES_PASS:?Define POSTGRES_PASS en .env}@postgres:5432/opsguard
       POSTGRES_HOST: postgres
       POSTGRES_DB:   opsguard
       POSTGRES_USER: opsguard
-      POSTGRES_PASS: ${POSTGRES_PASS:-opsguard2024}
-      JWT_SECRET:    ${JWT_SECRET:-cambia_esto_por_una_clave_segura}
+      POSTGRES_PASS: ${POSTGRES_PASS:?Define POSTGRES_PASS en .env}
+      JWT_SECRET:    ${JWT_SECRET:?Define JWT_SECRET en .env (openssl rand -hex 32)}
+      ADMIN_USER:    ${ADMIN_USER:-admin}
+      ADMIN_PASS:    ${ADMIN_PASS:-}
       JWT_EXPIRES:   8h
       # Modo humano: pausa + "escribiendo..." antes de enviar y pausa del número
       # tras enviar (ver src/services/humanPacing.js). HUMAN_MODE=false lo apaga.

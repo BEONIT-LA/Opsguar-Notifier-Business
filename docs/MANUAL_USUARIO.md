@@ -43,7 +43,7 @@ Ingresa tus credenciales:
 | Campo | Valor inicial |
 |-------|--------------|
 | Usuario | `admin` |
-| Contraseña | `admin123` |
+| Contraseña | la de `ADMIN_PASS` o, si no se definió, la generada que aparece una sola vez en el log (`docker compose logs app | grep Bootstrap`) |
 
 > ⚠️ **Cambia la contraseña inmediatamente** después del primer ingreso.
 

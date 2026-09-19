@@ -20,6 +20,7 @@ docker run -d --name redis-whatsapp -p 6379:6379 redis:alpine
 - `PORT` — puerto HTTP (default: `3000`)
 - `NODE_ENV` — entorno (default: `development`)
 - `REDIS_URL` — conexión Redis (default: `redis://localhost:6379`)
+- **Secretos sin defaults** (`.env.example`): `JWT_SECRET` obligatorio en producción (32+ caracteres; fuera de producción se genera uno aleatorio por proceso) y `POSTGRES_PASS` obligatoria en producción. `ADMIN_USER`/`ADMIN_PASS`: primer superadmin, lo crea `src/services/bootstrapAdmin.js` al arrancar si no hay ninguno (sin `ADMIN_PASS` genera una clave y la muestra una vez en el log; avisa si un superadmin conserva la antigua `admin123`)
 - **Modo humano** (`src/services/humanPacing.js`): `HUMAN_MODE` (default `true`), `HUMAN_THINK_MIN/MAX_MS` (1500/5000, pausa antes de escribir), `HUMAN_TYPING_CPS_MIN/MAX` (5/9 caracteres/s), `HUMAN_TYPING_MIN/MAX_MS` (1200/9000), `HUMAN_COOLDOWN_MIN/MAX_MS` (4000/12000, pausa del número tras enviar), `HUMAN_LONG_PAUSE_PCT` (10, % de pausas largas x1.5–2.5)
 
 ## Multi-tenant (OpsGuard SaaS)
@@ -33,7 +34,7 @@ Esta es la versión **multiempresa** (fork de OpsGuard Notifier). Conceptos clav
 - **Auth dual** (`src/middleware/authMiddleware.js`): JWT del panel (incluye `tenantId`+`role`) **o** token de API `Authorization: Bearer ogt_…` (tabla `tenant_api_tokens`, hash SHA-256). El token de API opera a nivel de su tenant pero no puede gestionar tokens ni `/api/admin`.
 - **Cuota**: se valida al encolar (`tenantService.checkCanSend` → 402 si agotada / 403 si suspendida o expirada) y se incrementa (`messages_used`) al completar el envío en el worker.
 
-Variables de entorno BD: `POSTGRES_HOST/PORT/DB/USER/PASS`. Migraciones: `database/006`→`011` (idempotentes, orden alfabético en `docker-entrypoint-initdb.d`). Seed superadmin: `node database/seed.js`.
+Variables de entorno BD: `POSTGRES_HOST/PORT/DB/USER/PASS`. Migraciones: `database/006`→`011` (idempotentes, orden alfabético en `docker-entrypoint-initdb.d`). Superadmin: lo crea la app al arrancar; `node database/seed.js --pass=...` crea/resetea uno a mano (sin clave por defecto). `003_seed.sql` ya no crea usuarios.
 
 ## Architecture
 

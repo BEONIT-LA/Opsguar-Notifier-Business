@@ -3,8 +3,10 @@
  * Crea el usuario admin inicial en la base de datos.
  *
  * Uso:
- *   node database/seed.js
- *   node database/seed.js --user=admin --pass=miPassword123
+ *   ADMIN_PASS=... node database/seed.js
+ *   node database/seed.js --user=admin --pass=<clave de 12+ caracteres>
+ *
+ * Sin contraseña por defecto: si no se indica, el script aborta.
  */
 require('dotenv').config();
 const { Pool }  = require('pg');
@@ -17,12 +19,16 @@ const args = Object.fromEntries(
 );
 
 const USERNAME   = args.user      || process.env.ADMIN_USER  || 'admin';
-const PASSWORD   = args.pass      || process.env.ADMIN_PASS  || 'admin123';
+const PASSWORD   = args.pass      || process.env.ADMIN_PASS;
 const FIRST_NAME = args.firstname || 'Administrador';
 const LAST_NAME  = args.lastname  || '';
 const EMAIL      = args.email     || '';
 
 async function seed() {
+  if (!PASSWORD || PASSWORD.length < 12 || PASSWORD === 'admin123') {
+    console.error('❌ Indica una contraseña de 12+ caracteres con --pass=... o ADMIN_PASS.');
+    process.exit(1);
+  }
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
@@ -50,8 +56,7 @@ async function seed() {
     console.log(`   Nombre:     ${[u.first_name, u.last_name].filter(Boolean).join(' ') || '–'}`);
     console.log(`   Email:      ${u.email || '–'}`);
     console.log(`   Role:       ${u.role}`);
-    console.log(`   Password:   ${PASSWORD}`);
-    console.log('\n⚠️  Guarda estas credenciales en un lugar seguro.\n');
+    console.log('\n⚠️  La contraseña no se muestra: guárdala en Gravity Ops.\n');
 
   } catch (err) {
     console.error('❌ Error:', err.message);

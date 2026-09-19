@@ -323,7 +323,7 @@ Authorization: Bearer <token>
 ```bash
 curl -X POST https://dominio.com:8443/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"user": "admin", "password": "admin123"}'
+  -d '{"user": "admin", "password": "<tu-contraseña>"}'
 ```
 
 Respuesta:
@@ -501,7 +501,7 @@ Las migraciones corren automáticamente al iniciar el contenedor `db`:
 ```
 database/001_users.sql      → tabla users + trigger updated_at
 database/002_audit_logs.sql → tabla audit_logs + índices
-database/003_seed.sql       → usuario admin inicial (admin/admin123)
+database/003_seed.sql       → sin usuarios fijos (el primer superadmin lo crea la app al arrancar)
 ```
 
 ### Conexión directa (solo para debugging)
@@ -602,12 +602,14 @@ ports:
 
 ### Olvidé la contraseña de admin
 
+Genera el hash de una clave nueva (12+ caracteres) y actualízala:
+
 ```bash
-docker exec opsguard-postgres psql -U opsguard -d opsguard -c \
-"UPDATE users SET password='\$2b\$12\$yj9qxFid2GZjgAI1FDSr0.Ji6SqsbK4qrmiGlSVJkU1wBdS54BqAO' WHERE username='admin';"
+HASH=$(docker exec opsguard-app node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 12))" 'NUEVA-CLAVE-LARGA')
+docker exec opsguard-postgres psql -U opsguard -d opsguard -c "UPDATE users SET password='$HASH' WHERE username='admin';"
 ```
 
-Entra con `admin` / `admin123` y cambia la contraseña.
+Guarda la clave nueva en Gravity Ops.
 
 ### Errores de certificados SSL
 

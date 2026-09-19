@@ -68,7 +68,9 @@
 
    http://IP-DEL-SERVIDOR:8080
    Usuario:    admin
-   Contraseña: admin123
+   Contraseña: la de ADMIN_PASS en tu .env o, si no la pusiste,
+               la generada que aparece UNA vez en:
+               docker compose logs app | grep Bootstrap
 
  PASO 6 — Cambiar contraseña (IMPORTANTE):
 
@@ -125,7 +127,9 @@
 
    https://tu-dominio.com:8443
    Usuario:    admin
-   Contraseña: admin123
+   Contraseña: la de ADMIN_PASS en tu .env o, si no la pusiste,
+               la generada que aparece UNA vez en:
+               docker compose logs app | grep Bootstrap
 
  PASO 6 — Cambiar contraseña (IMPORTANTE):
 
@@ -382,9 +386,11 @@
  ¿OLVIDASTE LA CONTRASEÑA?
 ==============================================================
 
-  docker exec opsguard-postgres psql -U opsguard -d opsguard -c \
-  "UPDATE users SET password='\$2b\$12\$yj9qxFid2GZjgAI1FDSr0.Ji6SqsbK4qrmiGlSVJkU1wBdS54BqAO' WHERE username='admin';"
+  Elige una clave nueva de 12+ caracteres y ejecuta:
 
-  Entra con: admin / admin123 → luego cambia la contraseña.
+  HASH=$(docker exec opsguard-app node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 12))" 'NUEVA-CLAVE-LARGA')
+  docker exec opsguard-postgres psql -U opsguard -d opsguard -c "UPDATE users SET password='$HASH' WHERE username='admin';"
+
+  Guarda la clave nueva en Gravity Ops.
 
 ==============================================================
