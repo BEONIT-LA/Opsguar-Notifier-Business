@@ -12,6 +12,8 @@ services:
     # desde src/database (registro en schema_migrations). Antes era
     # jeffoisrael/opsguardchannel-db, que en un nodo nuevo sembraba admin/admin123.
     # Mismo PG 16 + Alpine + en_US.utf8: compatible con el volumen existente.
+    # RETIRADO 2026-11-23 (MSIS-226): la base vive en pg-apps (vps-ab-1). Se conserva para rollback.
+    profiles: ["legacy"]
     image: postgres:16-alpine
     container_name: opsguard-postgres
     restart: unless-stopped
@@ -52,8 +54,8 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql://opsguard:${POSTGRES_PASS}@postgres:5432/opsguard
-      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql://opsguard:${POSTGRES_PASS}@172.28.53.18:5432/opsguard   # pg-apps en vps-ab-1 (MSIS-226)
+      POSTGRES_HOST: 172.28.53.18
       POSTGRES_DB: opsguard
       POSTGRES_USER: opsguard
       POSTGRES_PASS: ${POSTGRES_PASS:?Define POSTGRES_PASS en .env}
@@ -65,8 +67,6 @@ services:
     volumes:
       - sessions_data:/app/auth_sessions
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:

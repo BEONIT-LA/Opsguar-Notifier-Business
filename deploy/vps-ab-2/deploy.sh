@@ -11,7 +11,7 @@
 #   2. git pull de ./src (falla si no puede: no despliega código viejo).
 #   3. Backup: etiqueta la imagen actual y pg_dump de la BD.
 #   4. Construye la imagen de la app.
-#   5. Levanta postgres + redis y aplica SÓLO las migraciones pendientes
+#   5. Levanta redis y, contra pg-apps (vps-ab-1), aplica SÓLO las migraciones pendientes
 #      (registro en la tabla schema_migrations).
 #   6. Recrea la app y espera a que esté healthy.
 #   7. Muestra el log de Bootstrap (clave del superadmin si se generó).
@@ -21,7 +21,11 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 APP_IMAGE="opsguar-notifier-business"
-DB="docker exec -i opsguard-postgres psql -U opsguard -d opsguard -v ON_ERROR_STOP=1 -q"
+# La BD vive en pg-apps (vps-ab-1, red privada) desde 2026-11-23 (MSIS-226).
+# Se usa un cliente efimero; PGPASSWORD se exporta tras cargar .env.
+PGHOST_DB="172.28.53.18"
+PGCLI="docker run --rm -i -e PGPASSWORD postgres:16-alpine"
+DB="$PGCLI psql -h $PGHOST_DB -U opsguard -d opsguard -v ON_ERROR_STOP=1 -q"
 # Todo lo anterior a este archivo ya estaba aplicado en los nodos desplegados
 # antes de existir schema_migrations (ver paso 5).
 BASELINE_LAST="011_api_tokens.sql"
@@ -41,6 +45,7 @@ fi
 # shellcheck disable=SC1091
 set -a; . ./.env; set +a
 [ -n "${POSTGRES_PASS:-}" ] || die "POSTGRES_PASS vacía en .env"
+export PGPASSWORD="$POSTGRES_PASS"
 [ "${#JWT_SECRET}" -ge 32 ] || die "JWT_SECRET debe tener 32+ caracteres (openssl rand -hex 32)"
 
 # 2) Código -----------------------------------------------------------
@@ -62,10 +67,9 @@ if docker image inspect "$APP_IMAGE:latest" >/dev/null 2>&1; then
   docker tag "$APP_IMAGE:latest" "$APP_IMAGE:$PREV_TAG"
   log "imagen actual etiquetada como $APP_IMAGE:$PREV_TAG"
 fi
-if docker ps --format '{{.Names}}' | grep -qx opsguard-postgres; then
-  (umask 077; docker exec opsguard-postgres pg_dump --clean --if-exists -U opsguard -d opsguard > "$BK/db.sql")
-  log "BD respaldada en $BK/db.sql"
-fi
+$PGCLI pg_isready -h $PGHOST_DB -U opsguard -d opsguard >/dev/null 2>&1 || die "pg-apps ($PGHOST_DB) no responde"
+(umask 077; $PGCLI pg_dump -h $PGHOST_DB --clean --if-exists --no-owner -U opsguard -d opsguard > "$BK/db.sql") || die "falló el pg_dump previo"
+log "BD respaldada en $BK/db.sql"
 
 # 4) Imagen de la app ---------------------------------------------------
 log "construyendo $APP_IMAGE:latest ..."
@@ -73,9 +77,9 @@ docker build -t "$APP_IMAGE:latest" ./src > "$BK/build.log" 2>&1 \
   || { tail -20 "$BK/build.log" >&2; die "falló el build (log: $BK/build.log)"; }
 
 # 5) BD + migraciones pendientes ----------------------------------------
-docker compose up -d postgres redis
-log "esperando a Postgres..."
-until docker exec opsguard-postgres pg_isready -U opsguard -d opsguard >/dev/null 2>&1; do sleep 2; done
+docker compose up -d redis
+log "esperando a Postgres (pg-apps)..."
+until $PGCLI pg_isready -h $PGHOST_DB -U opsguard -d opsguard >/dev/null 2>&1; do sleep 2; done
 
 $DB -c "CREATE TABLE IF NOT EXISTS schema_migrations (
           filename   TEXT PRIMARY KEY,
