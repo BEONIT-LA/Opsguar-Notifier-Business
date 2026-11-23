@@ -85,3 +85,13 @@ Compose previo: `cp backup-pre-<fecha>/docker-compose.yml .` y `docker compose u
 - Crear sesiones de WhatsApp desde el workspace del tenant (POST /api/sessions + QR).
   Las sesiones persisten en el volumen `sessions_data`: recrear la app no pide QR.
 - DNS A notificaciones.beonit.la -> 45.169.146.201 (Cloudflare, DNS-only). TLS Let's Encrypt via Traefik.
+
+## Base de datos en pg-apps (desde 2026-11-23, MSIS-226)
+- La BD `opsguard` vive en el PostgreSQL compartido **pg-apps** de vps-ab-1 (`172.28.53.18:5432`, red privada),
+  rol `opsguard` (no superusuario), misma `POSTGRES_PASS` del `.env`.
+- El servicio `postgres` del compose queda bajo el perfil `legacy` (parado, volumen `opsguard_postgres_data`
+  conservado para rollback). Lo de arriba que diga `docker exec opsguard-postgres ...` ya no aplica; usar:
+  `set -a; . ./.env; set +a; export PGPASSWORD=$POSTGRES_PASS; docker run --rm -i -e PGPASSWORD postgres:16-alpine psql -h 172.28.53.18 -U opsguard -d opsguard`
+- Backup diario de pg-apps en vps-ab-1 (`pg-apps-backup.timer`, 02:30 UTC, 14 dias).
+- Rollback a la BD local: `cp docker-compose.yml.bak-20261123-pre-pgapps docker-compose.yml && cp deploy.sh.bak-20261123-pre-pgapps deploy.sh && docker compose up -d`
+  (se pierde lo escrito en pg-apps desde el corte, 2026-11-23 22:21 UTC).
